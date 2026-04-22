@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "bill-splitter-app",
-    "slug": "bill-splitter-app",
+    "name": "Split It",
+    "slug": "split-it",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,9 +13,14 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.baeyong.billsplitter",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.baeyong.billsplitter",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -25,6 +30,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ce89472d-3799-4d41-a2ad-2953613e006d"
+      }
+    },
+    "owner": "baeyong1227"
   }
 }
