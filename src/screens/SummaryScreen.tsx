@@ -68,7 +68,7 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
             </View>
             {row.sharedShare > 0 && (
               <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Shared share</Text>
+                <Text style={styles.breakdownLabel}>Items shared</Text>
                 <Text style={styles.breakdownValue}>${row.sharedShare.toFixed(2)}</Text>
               </View>
             )}
