@@ -10,11 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
 
 export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
   const { bill, setPeople } = useBill();
+  const insets = useSafeAreaInsets();
   const [nameInput, setNameInput] = useState('');
 
   const addName = () => {
@@ -66,6 +68,8 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
         data={bill.people}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListEmptyComponent={
           <Text style={styles.empty}>Add everyone who ate to start splitting.</Text>
         }
@@ -99,7 +103,7 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
         }}
       />
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <TouchableOpacity
           style={styles.secondaryBtn}
           onPress={() => navigation.navigate('SharedItems')}

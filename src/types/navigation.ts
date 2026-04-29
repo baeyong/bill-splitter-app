@@ -6,6 +6,8 @@ export type RootStackParamList = {
   PersonItems: { personId: string };
   SharedItems: undefined;
   Summary: undefined;
+  Receipts: undefined;
+  ReceiptDetail: { receiptId: string };
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

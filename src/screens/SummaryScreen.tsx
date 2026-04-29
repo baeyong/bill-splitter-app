@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -9,11 +9,13 @@ import {
   View,
 } from 'react-native';
 import { useBill } from '../context/BillContext';
+import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
 import { calculateBreakdown } from '../utils/calculate';
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const { bill, resetBill } = useBill();
+  const { saveReceipt, ownerName, setOwnerName } = useReceipts();
   const result = useMemo(() => calculateBreakdown(bill), [bill]);
   const [expected, setExpected] = useState('');
 
@@ -21,6 +23,20 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const diff =
     !isNaN(expectedNum) && expectedNum >= 0 ? result.grandTotal - expectedNum : null;
   const matches = diff !== null && Math.abs(diff) < 0.01;
+
+  const [restaurant, setRestaurant] = useState('');
+  const [notes, setNotes] = useState('');
+  const [ownerPersonId, setOwnerPersonId] = useState<string | undefined>(undefined);
+  const [savedId, setSavedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ownerPersonId) return;
+    if (!ownerName) return;
+    const match = bill.people.find(
+      (p) => p.name.trim().toLowerCase() === ownerName.trim().toLowerCase(),
+    );
+    if (match) setOwnerPersonId(match.id);
+  }, [ownerName, bill.people, ownerPersonId]);
 
   const confirmReset = () => {
     Alert.alert(
@@ -41,8 +57,33 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     );
   };
 
+  const onSave = () => {
+    if (bill.people.length === 0) return;
+    const receipt = saveReceipt({
+      restaurantName: restaurant.trim() || undefined,
+      notes: notes.trim() || undefined,
+      ownerPersonId,
+      bill,
+      breakdown: result.rows,
+      grandSubtotal: result.grandSubtotal,
+      grandTax: result.grandTax,
+      grandTip: result.grandTip,
+      grandTotal: result.grandTotal,
+    });
+    if (ownerPersonId) {
+      const owner = bill.people.find((p) => p.id === ownerPersonId);
+      if (owner) setOwnerName(owner.name);
+    }
+    setSavedId(receipt.id);
+  };
+
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+    <ScrollView
+      style={styles.flex}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+    >
       <View style={styles.settingsRow}>
         <Text style={styles.settingsText}>
           {bill.stateCode} · Tax {bill.taxRatePercent}% · Tip{' '}
@@ -128,6 +169,57 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
         )}
       </View>
 
+      <View style={styles.saveBlock}>
+        <Text style={styles.saveTitle}>Save this receipt</Text>
+        <Text style={styles.saveHint}>
+          Optional. Keeps a copy on this phone for later reference.
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={restaurant}
+          onChangeText={setRestaurant}
+          placeholder="Restaurant (optional)"
+          autoCapitalize="words"
+        />
+        <TextInput
+          style={[styles.input, styles.notesInput]}
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Notes (optional)"
+          multiline
+        />
+        <Text style={styles.subLabel}>Which one was you?</Text>
+        <View style={styles.chipRow}>
+          {bill.people.map((p) => {
+            const on = ownerPersonId === p.id;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.chip, on && styles.chipOn]}
+                onPress={() => setOwnerPersonId(on ? undefined : p.id)}
+              >
+                <Text style={[styles.chipText, on && styles.chipTextOn]}>{p.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {savedId ? (
+          <View style={styles.savedRow}>
+            <Text style={styles.savedText}>✓ Saved</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Receipts')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.savedLink}>View receipts</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
+            <Text style={styles.saveBtnText}>Save receipt</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
         <Text style={styles.resetBtnText}>Start new bill</Text>
       </TouchableOpacity>
@@ -183,7 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F7F1',
     padding: 14,
     borderRadius: 10,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   verifyLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   input: {
@@ -198,6 +290,43 @@ const styles = StyleSheet.create({
   diffText: { marginTop: 8, fontSize: 14, fontWeight: '600' },
   diffOk: { color: '#3AB795' },
   diffBad: { color: '#c62828' },
+  saveBlock: {
+    backgroundColor: '#F7F9FB',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 20,
+    gap: 10,
+  },
+  saveTitle: { fontSize: 16, fontWeight: '700' },
+  saveHint: { fontSize: 13, color: '#777' },
+  notesInput: { minHeight: 60, textAlignVertical: 'top' },
+  subLabel: { fontSize: 14, fontWeight: '600', color: '#444', marginTop: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#f0f0f0',
+  },
+  chipOn: { backgroundColor: '#3AB795' },
+  chipText: { color: '#333', fontSize: 14 },
+  chipTextOn: { color: '#fff', fontWeight: '600' },
+  saveBtn: {
+    backgroundColor: '#3AB795',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  saveBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  savedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  savedText: { color: '#3AB795', fontWeight: '700', fontSize: 15 },
+  savedLink: { color: '#3AB795', fontWeight: '600', fontSize: 15 },
   resetBtn: {
     borderWidth: 1,
     borderColor: '#c62828',

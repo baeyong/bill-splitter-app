@@ -4,6 +4,12 @@ export type Item = {
   price: number;
 };
 
+export type RecentItem = {
+  name: string;
+  price: number;
+  lastUsed: number;
+};
+
 export type Person = {
   id: string;
   name: string;
@@ -37,4 +43,18 @@ export type PersonBreakdown = {
   tax: number;
   tip: number;
   total: number;
+};
+
+export type SavedReceipt = {
+  id: string;
+  createdAt: number;
+  restaurantName?: string;
+  notes?: string;
+  ownerPersonId?: string;
+  bill: Bill;
+  breakdown: PersonBreakdown[];
+  grandSubtotal: number;
+  grandTax: number;
+  grandTip: number;
+  grandTotal: number;
 };

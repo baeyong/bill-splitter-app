@@ -9,12 +9,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import RecentItemsRow from '../components/RecentItemsRow';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
 
+const MAX_QTY = 20;
+
 export default function PersonItemsScreen({ navigation, route }: ScreenProps<'PersonItems'>) {
   const { personId } = route.params;
-  const { bill, addItem, removeItem } = useBill();
+  const { bill, addItem, removeItem, rememberItem } = useBill();
+  const insets = useSafeAreaInsets();
   const person = useMemo(
     () => bill.people.find((p) => p.id === personId),
     [bill.people, personId],
@@ -22,6 +27,7 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
 
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
+  const [qty, setQty] = useState(1);
 
   useLayoutEffect(() => {
     if (person) navigation.setOptions({ title: person.name });
@@ -42,10 +48,31 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
     const price = parseFloat(itemPrice);
     if (!name) return;
     if (isNaN(price) || price < 0) return;
-    addItem(person.id, name, price);
+    const count = Math.max(1, Math.min(MAX_QTY, qty));
+    for (let i = 0; i < count; i++) {
+      addItem(person.id, name, price);
+    }
+    rememberItem(name, price);
     setItemName('');
     setItemPrice('');
+    setQty(1);
   };
+
+  const pickRecent = (name: string, price: number) => {
+    setItemName(name);
+    setItemPrice(price.toFixed(2));
+  };
+
+  const clear = () => {
+    setItemName('');
+    setItemPrice('');
+    setQty(1);
+  };
+
+  const hasInput = itemName.length > 0 || itemPrice.length > 0 || qty > 1;
+
+  const decQty = () => setQty((q) => Math.max(1, q - 1));
+  const incQty = () => setQty((q) => Math.min(MAX_QTY, q + 1));
 
   return (
     <KeyboardAvoidingView
@@ -53,6 +80,15 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.addBlock}>
+        {hasInput && (
+          <View style={styles.headerRow}>
+            <View style={styles.flex} />
+            <TouchableOpacity onPress={clear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.clearLink}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <RecentItemsRow filterText={itemName} onPick={pickRecent} />
         <TextInput
           style={styles.input}
           value={itemName}
@@ -69,6 +105,23 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
             keyboardType="decimal-pad"
             onSubmitEditing={add}
           />
+          <View style={styles.qtyBox}>
+            <TouchableOpacity
+              style={styles.qtyBtn}
+              onPress={decQty}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.qtyBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.qtyValue}>{qty}</Text>
+            <TouchableOpacity
+              style={styles.qtyBtn}
+              onPress={incQty}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.qtyBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity style={styles.addBtn} onPress={add}>
             <Text style={styles.addBtnText}>Add</Text>
           </TouchableOpacity>
@@ -79,6 +132,8 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
         data={person.items}
         keyExtractor={(i) => i.id}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListEmptyComponent={
           <Text style={styles.empty}>No items yet. Add what {person.name} ate.</Text>
         }
@@ -96,7 +151,7 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
         )}
       />
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <Text style={styles.subtotalLabel}>Items subtotal</Text>
         <Text style={styles.subtotalValue}>${subtotal.toFixed(2)}</Text>
       </View>
@@ -112,7 +167,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  row: { flexDirection: 'row', gap: 8 },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  clearLink: { color: '#c62828', fontWeight: '600', fontSize: 14 },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -121,11 +178,32 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
   },
+  qtyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  qtyBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  qtyBtnText: { fontSize: 18, fontWeight: '600', color: '#3AB795' },
+  qtyValue: {
+    minWidth: 22,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   addBtn: {
     backgroundColor: '#3AB795',
     paddingHorizontal: 18,
     justifyContent: 'center',
     borderRadius: 8,
+    paddingVertical: 10,
   },
   addBtnText: { color: '#fff', fontWeight: '600' },
   list: { padding: 16 },

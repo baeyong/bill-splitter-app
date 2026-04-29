@@ -19,16 +19,26 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
   const [taxInput, setTaxInput] = useState(String(bill.taxRatePercent));
   const [tipInput, setTipInput] = useState(String(bill.tipValue));
 
+  const onTaxChange = (s: string) => {
+    setTaxInput(s);
+    const n = parseFloat(s);
+    if (!isNaN(n) && n >= 0) setTaxRatePercent(n);
+  };
+
+  const onTipChange = (s: string) => {
+    setTipInput(s);
+    const n = parseFloat(s);
+    if (!isNaN(n) && n >= 0) setTipValue(n);
+  };
+
   const commitTax = () => {
     const n = parseFloat(taxInput);
-    if (!isNaN(n) && n >= 0) setTaxRatePercent(n);
-    else setTaxInput(String(bill.taxRatePercent));
+    if (isNaN(n) || n < 0) setTaxInput(String(bill.taxRatePercent));
   };
 
   const commitTip = () => {
     const n = parseFloat(tipInput);
-    if (!isNaN(n) && n >= 0) setTipValue(n);
-    else setTipInput(String(bill.tipValue));
+    if (isNaN(n) || n < 0) setTipInput(String(bill.tipValue));
   };
 
   return (
@@ -36,7 +46,11 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <Text style={styles.sectionLabel}>State</Text>
         <View style={styles.pickerWrap}>
           <Picker
@@ -62,7 +76,7 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
           style={styles.input}
           keyboardType="decimal-pad"
           value={taxInput}
-          onChangeText={setTaxInput}
+          onChangeText={onTaxChange}
           onBlur={commitTax}
           placeholder="7.25"
         />
@@ -100,7 +114,7 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
           style={styles.input}
           keyboardType="decimal-pad"
           value={tipInput}
-          onChangeText={setTipInput}
+          onChangeText={onTipChange}
           onBlur={commitTip}
           placeholder={bill.tipMode === 'percent' ? '18' : '10.00'}
         />
@@ -114,6 +128,13 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
           }}
         >
           <Text style={styles.primaryBtnText}>Continue</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          onPress={() => navigation.navigate('Receipts')}
+        >
+          <Text style={styles.secondaryBtnText}>View saved receipts</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -158,4 +179,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  secondaryBtn: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#3AB795',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  secondaryBtnText: { color: '#3AB795', fontSize: 15, fontWeight: '600' },
 });

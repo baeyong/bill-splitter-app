@@ -9,11 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import RecentItemsRow from '../components/RecentItemsRow';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
 
 export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
-  const { bill, addSharedItem, removeSharedItem } = useBill();
+  const { bill, addSharedItem, removeSharedItem, rememberItem } = useBill();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -35,10 +36,25 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
     const ids = Object.keys(selected).filter((k) => selected[k]);
     if (!trimmed || isNaN(p) || p < 0 || ids.length === 0) return;
     addSharedItem(trimmed, p, ids);
+    rememberItem(trimmed, p);
     setName('');
     setPrice('');
     setSelected({});
   };
+
+  const pickRecent = (n: string, pr: number) => {
+    setName(n);
+    setPrice(pr.toFixed(2));
+  };
+
+  const clear = () => {
+    setName('');
+    setPrice('');
+    setSelected({});
+  };
+
+  const hasInput =
+    name.length > 0 || price.length > 0 || Object.values(selected).some(Boolean);
 
   const nameToLabel = (ids: string[]) =>
     ids
@@ -55,6 +71,18 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
       ) : (
         <>
           <View style={styles.addBlock}>
+            {hasInput && (
+              <View style={styles.headerRow}>
+                <View style={styles.flex} />
+                <TouchableOpacity
+                  onPress={clear}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.clearLink}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <RecentItemsRow filterText={name} onPick={pickRecent} />
             <TextInput
               style={styles.input}
               value={name}
@@ -98,6 +126,8 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
             data={bill.sharedItems}
             keyExtractor={(s) => s.id}
             contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             ListEmptyComponent={
               <Text style={styles.empty}>No shared items yet.</Text>
             }
@@ -140,6 +170,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  clearLink: { color: '#c62828', fontWeight: '600', fontSize: 14 },
   sectionLabel: { fontSize: 14, fontWeight: '600', color: '#444' },
   link: { color: '#3AB795', fontWeight: '600' },
   input: {
