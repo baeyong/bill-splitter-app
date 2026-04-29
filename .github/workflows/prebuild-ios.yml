@@ -1,0 +1,49 @@
+name: Prebuild iOS
+
+# Workaround for SDK 54 EAS prebuild EACCES bug on .expo/web — see commit
+# df6e786 and CLAUDE.md. Generates the ios/ native folder on a Linux runner
+# (which expo prebuild refuses to do from Windows) and pushes it back to main
+# so EAS will skip the broken prebuild step.
+#
+# Re-run after any change to app.json / app.config that affects native config,
+# or after upgrading the Expo SDK.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+
+      - name: Run expo prebuild for iOS
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Commit and push generated ios/
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A ios/ package.json
+          if git diff --staged --quiet; then
+            echo "No changes — ios/ already up to date."
+            exit 0
+          fi
+          git commit -m "build: regenerate ios/ via prebuild workflow"
+          git push origin main
