@@ -1,0 +1,12 @@
+# Force LF line endings for all text files on every checkout, regardless of
+# the platform's `core.autocrlf` setting. Required because the EAS macOS
+# build runner was checking out ios/.xcode.env with CRLF and bash choked
+# on the embedded \r when sourcing it during the [Expo] Configure project
+# script phase.
+* text=auto eol=lf
+
+# Windows shell scripts must keep CRLF (none in this repo today, but listed
+# for safety against future additions)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

@@ -7,7 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "eas-build-pre-install": "chmod -R u+rwX ios 2>/dev/null || true"
+    "eas-build-pre-install": "chmod -R u+rwX ios 2>/dev/null || true; for f in ios/.xcode.env ios/.xcode.env.local; do [ -f \"$f\" ] && tr -d '\\r' < \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; done; true"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
