@@ -204,6 +204,7 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           people: [],
           sharedItems: [],
         }));
+        setRecentItems([]);
       },
     }),
     [bill, prefsLoaded, recentItems],
