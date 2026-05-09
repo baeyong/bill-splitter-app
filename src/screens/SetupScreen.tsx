@@ -130,17 +130,11 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
           onPress={() => {
             commitTax();
             commitTip();
-            navigation.navigate('People');
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate('Home');
           }}
         >
-          <Text style={styles.primaryBtnText}>Continue</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => navigation.navigate('Receipts')}
-        >
-          <Text style={styles.secondaryBtnText}>View saved receipts</Text>
+          <Text style={styles.primaryBtnText}>Done</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -185,13 +179,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  secondaryBtn: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#3AB795',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  secondaryBtnText: { color: '#3AB795', fontSize: 15, fontWeight: '600' },
 });

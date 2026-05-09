@@ -5,6 +5,7 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BillProvider } from './src/context/BillContext';
 import { ReceiptsProvider } from './src/context/ReceiptsContext';
+import HomeScreen from './src/screens/HomeScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
 import PersonItemsScreen from './src/screens/PersonItemsScreen';
 import ReceiptDetailScreen from './src/screens/ReceiptDetailScreen';
@@ -23,7 +24,7 @@ export default function App() {
         <ReceiptsProvider>
           <NavigationContainer>
             <Stack.Navigator
-              initialRouteName="Setup"
+              initialRouteName="Home"
               screenOptions={{
                 headerStyle: { backgroundColor: '#fff' },
                 headerTintColor: '#3AB795',
@@ -31,7 +32,8 @@ export default function App() {
                 headerShadowVisible: false,
               }}
             >
-              <Stack.Screen name="Setup" component={SetupScreen} options={{ title: 'Setup' }} />
+              <Stack.Screen name="Home" component={HomeScreen} />
+              <Stack.Screen name="Setup" component={SetupScreen} options={{ title: 'Settings' }} />
               <Stack.Screen name="People" component={PeopleScreen} options={{ title: 'People' }} />
               <Stack.Screen
                 name="PersonItems"

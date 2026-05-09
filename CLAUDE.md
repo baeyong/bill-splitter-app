@@ -20,13 +20,20 @@ This is an Expo managed workflow project — there is no native iOS/Android sour
 Defined in [App.tsx](App.tsx). Flow:
 
 ```
-Setup → People → PersonItems
-              ↘ SharedItems
-              ↘ Summary → Receipts → ReceiptDetail
-                        (Setup also links directly to Receipts)
+Home  ──► People ──► PersonItems
+   │           ↘ SharedItems
+   │           ↘ Summary ──► Receipts ──► ReceiptDetail
+   │                                          │
+   │                                          ▼
+   │                              (Edit) ──► Summary  (edit mode)
+   │
+   ├─► Setup           (gear icon — settings only; "Done" goes back)
+   └─► Receipts        (skip-the-bill shortcut from Home)
 ```
 
-`RootStackParamList` in [src/types/navigation.ts](src/types/navigation.ts) is the single source of truth for routes — add new screens there and in `App.tsx`.
+`Home` is the initial route — it's the entry point with two big CTAs ("New bill" → People; "View receipts" → Receipts) and a settings gear → Setup. Setup is no longer a flow step; it's a settings screen reached only via the gear or via the People screen's "Edit" link. `RootStackParamList` in [src/types/navigation.ts](src/types/navigation.ts) is the single source of truth for routes — add new screens there and in `App.tsx`.
+
+ReceiptDetail can re-enter Summary in **edit mode** by calling `loadFromReceipt(receipt)` (see BillContext) — Summary then shows a yellow banner and the save button calls `updateReceipt` instead of `saveReceipt`. See `editingReceiptId` and the prefill effect in [SummaryScreen](src/screens/SummaryScreen.tsx).
 
 ### Two AsyncStorage-backed contexts
 
