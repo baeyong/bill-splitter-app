@@ -4,7 +4,6 @@ import { getStateByCode } from '../data/stateTaxRates';
 import { Bill, Item, Person, RecentItem, SharedItem, TipMode } from '../types/bill';
 
 const PREFS_KEY = 'bill-splitter:prefs:v1';
-const RECENT_ITEMS_KEY = 'bill-splitter:recent-items:v1';
 const RECENT_ITEMS_MAX = 30;
 
 type StoredPrefs = {
@@ -53,7 +52,6 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
-  const [recentLoaded, setRecentLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -70,27 +68,6 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     })();
   }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(RECENT_ITEMS_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as RecentItem[];
-          if (Array.isArray(parsed)) setRecentItems(parsed);
-        }
-      } catch {
-        // ignore
-      } finally {
-        setRecentLoaded(true);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!recentLoaded) return;
-    AsyncStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(recentItems)).catch(() => {});
-  }, [recentLoaded, recentItems]);
 
   useEffect(() => {
     if (!prefsLoaded) return;
