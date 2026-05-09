@@ -38,7 +38,6 @@ type BillContextValue = {
   addSharedItem: (name: string, totalPrice: number, personIds: string[]) => void;
   removeSharedItem: (id: string) => void;
   updateSharedItem: (id: string, patch: Partial<Omit<SharedItem, 'id'>>) => void;
-  rememberItem: (name: string, price: number) => void;
   resetBill: () => void;
 };
 
@@ -51,7 +50,29 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sharedItems: [],
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
+
+  const recentItems = useMemo<RecentItem[]>(() => {
+    const tsOf = (id: string) => parseInt(id.split('-')[0] ?? '0', 10) || 0;
+    const fromPeople = bill.people.flatMap((p) =>
+      p.items.map((i) => ({ name: i.name, price: i.price, _ts: tsOf(i.id) })),
+    );
+    const fromShared = bill.sharedItems.map((s) => ({
+      name: s.name,
+      price: s.totalPrice,
+      _ts: tsOf(s.id),
+    }));
+    const all = [...fromPeople, ...fromShared].sort((a, b) => b._ts - a._ts);
+    const seen = new Set<string>();
+    const out: RecentItem[] = [];
+    for (const it of all) {
+      const k = it.name.trim().toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push({ name: it.name, price: it.price, lastUsed: it._ts });
+      if (out.length >= RECENT_ITEMS_MAX) break;
+    }
+    return out;
+  }, [bill.people, bill.sharedItems]);
 
   useEffect(() => {
     (async () => {
@@ -159,19 +180,6 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           sharedItems: prev.sharedItems.map((s) => (s.id === id ? { ...s, ...patch } : s)),
         }));
       },
-      rememberItem: (name, price) => {
-        const trimmed = name.trim();
-        if (!trimmed || !Number.isFinite(price) || price < 0) return;
-        const key = trimmed.toLowerCase();
-        setRecentItems((prev) => {
-          const filtered = prev.filter((r) => r.name.trim().toLowerCase() !== key);
-          const next: RecentItem[] = [
-            { name: trimmed, price, lastUsed: Date.now() },
-            ...filtered,
-          ];
-          return next.slice(0, RECENT_ITEMS_MAX);
-        });
-      },
       resetBill: () => {
         setBill((prev) => ({
           stateCode: prev.stateCode,
@@ -181,7 +189,6 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           people: [],
           sharedItems: [],
         }));
-        setRecentItems([]);
       },
     }),
     [bill, prefsLoaded, recentItems],

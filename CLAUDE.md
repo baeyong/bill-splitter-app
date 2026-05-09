@@ -32,7 +32,7 @@ Setup → People → PersonItems
 
 Both wrap the navigator. Order matters: `BillProvider` outside, `ReceiptsProvider` inside.
 
-- **[BillContext](src/context/BillContext.tsx)** — the *in-progress* bill. Holds people, items, shared items, tax/tip prefs, and the `recentItems` autocomplete cache. The recent-items cache is **session-scoped, in-memory only** — it does NOT persist across app restarts and is cleared by `resetBill`. Tax/tip prefs persist across restarts via AsyncStorage (`bill-splitter:prefs:v1`).
+- **[BillContext](src/context/BillContext.tsx)** — the *in-progress* bill. Holds people, items, shared items, and tax/tip prefs. The `recentItems` field on the context is **derived** (via `useMemo`) from `bill.people[*].items` + `bill.sharedItems` — there's no separate cache to manage. Items are deduped by lowercased name and sorted newest-first using the timestamp embedded in each item's id. Removing an item also removes its chip suggestion. Tax/tip prefs persist across restarts via AsyncStorage (`bill-splitter:prefs:v1`).
 - **[ReceiptsContext](src/context/ReceiptsContext.tsx)** — *saved* receipts and the global owner name. `saveReceipt` takes a `SavedReceipt` minus `id`/`createdAt` and prepends it to the list. Storage keys: `bill-splitter:receipts:v1`, `bill-splitter:owner-name:v1`.
 
 When bumping a storage schema, change the `:vN` suffix rather than mutating in place — old installs still have the old shape.

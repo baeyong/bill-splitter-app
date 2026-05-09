@@ -16,7 +16,7 @@ import { ScreenProps } from '../types/navigation';
 const MAX_QTY = 20;
 
 export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
-  const { bill, addSharedItem, removeSharedItem, rememberItem } = useBill();
+  const { bill, addSharedItem, removeSharedItem } = useBill();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [qty, setQty] = useState(1);
@@ -42,7 +42,6 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
     for (let i = 0; i < count; i++) {
       addSharedItem(trimmed, p, ids);
     }
-    rememberItem(trimmed, p);
     setName('');
     setPrice('');
     setQty(1);

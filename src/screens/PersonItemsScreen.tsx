@@ -18,7 +18,7 @@ const MAX_QTY = 20;
 
 export default function PersonItemsScreen({ navigation, route }: ScreenProps<'PersonItems'>) {
   const { personId } = route.params;
-  const { bill, addItem, removeItem, rememberItem } = useBill();
+  const { bill, addItem, removeItem } = useBill();
   const insets = useSafeAreaInsets();
   const person = useMemo(
     () => bill.people.find((p) => p.id === personId),
@@ -52,7 +52,6 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
     for (let i = 0; i < count; i++) {
       addItem(person.id, name, price);
     }
-    rememberItem(name, price);
     setItemName('');
     setItemPrice('');
     setQty(1);
