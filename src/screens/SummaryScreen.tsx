@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,10 +11,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Calendar, DateData } from 'react-native-calendars';
 import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
 import { calculateBreakdown } from '../utils/calculate';
+
+const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+const ymdLocal = (d: Date) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const formatPickerLabel = (d: Date) =>
+  d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const { bill, resetBill } = useBill();
@@ -28,6 +38,8 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const [notes, setNotes] = useState('');
   const [ownerPersonId, setOwnerPersonId] = useState<string | undefined>(undefined);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [receiptDate, setReceiptDate] = useState<Date>(() => new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (ownerPersonId) return;
@@ -69,6 +81,7 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
       grandTax: result.grandTax,
       grandTip: result.grandTip,
       grandTotal: result.grandTotal,
+      createdAt: receiptDate.getTime(),
     });
     if (ownerPersonId) {
       const owner = bill.people.find((p) => p.id === ownerPersonId);
@@ -78,6 +91,10 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   };
 
   return (
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
     <ScrollView
       style={styles.flex}
       contentContainerStyle={styles.container}
@@ -125,6 +142,18 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
               <Text style={styles.breakdownLabel}>Tip</Text>
               <Text style={styles.breakdownValue}>${row.tip.toFixed(2)}</Text>
             </View>
+            {person && person.items.length > 0 && (
+              <View style={styles.itemsList}>
+                {person.items.map((it) => (
+                  <View key={it.id} style={styles.itemLineRow}>
+                    <Text style={styles.itemLineName} numberOfLines={1}>
+                      • {it.name}
+                    </Text>
+                    <Text style={styles.itemLinePrice}>${it.price.toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             <Text style={styles.tapHint}>
               {person?.items.length ?? 0} item(s) · tap to edit
             </Text>
@@ -188,6 +217,13 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
           placeholder="Notes (optional)"
           multiline
         />
+        <View style={styles.dateRow}>
+          <Text style={styles.dateLabel}>Date</Text>
+          <TouchableOpacity onPress={() => setDatePickerOpen(true)} style={styles.dateBtn}>
+            <Text style={styles.dateBtnText}>{formatPickerLabel(receiptDate)}</Text>
+            <Text style={styles.dateBtnChange}>Change</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.subLabel}>Which one was you?</Text>
         <View style={styles.chipRow}>
           {bill.people.map((p) => {
@@ -224,6 +260,50 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
         <Text style={styles.resetBtnText}>Start new bill</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    <Modal
+      visible={datePickerOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setDatePickerOpen(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalBackdrop}
+        activeOpacity={1}
+        onPress={() => setDatePickerOpen(false)}
+      >
+        <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+          <Text style={styles.modalTitle}>Receipt date</Text>
+          <Calendar
+            current={ymdLocal(receiptDate)}
+            initialDate={ymdLocal(receiptDate)}
+            markedDates={{
+              [ymdLocal(receiptDate)]: { selected: true, selectedColor: '#3AB795' },
+            }}
+            onDayPress={(d: DateData) => {
+              setReceiptDate(new Date(d.year, d.month - 1, d.day));
+              setDatePickerOpen(false);
+            }}
+            theme={{
+              todayTextColor: '#3AB795',
+              arrowColor: '#3AB795',
+              selectedDayBackgroundColor: '#3AB795',
+              selectedDayTextColor: '#fff',
+            }}
+          />
+          <TouchableOpacity
+            style={styles.modalTodayBtn}
+            onPress={() => {
+              setReceiptDate(new Date());
+              setDatePickerOpen(false);
+            }}
+          >
+            <Text style={styles.modalTodayBtnText}>Today</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -254,6 +334,61 @@ const styles = StyleSheet.create({
   breakdownLabel: { fontSize: 14, color: '#555' },
   breakdownValue: { fontSize: 14, color: '#333' },
   tapHint: { fontSize: 12, color: '#999', marginTop: 6, fontStyle: 'italic' },
+  itemsList: {
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    gap: 2,
+  },
+  itemLineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  itemLineName: { flex: 1, fontSize: 13, color: '#444', paddingRight: 8 },
+  itemLinePrice: { fontSize: 13, color: '#666', fontVariant: ['tabular-nums'] },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  dateLabel: { fontSize: 14, fontWeight: '600', color: '#444' },
+  dateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  dateBtnText: { fontSize: 14, color: '#222' },
+  dateBtnChange: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 4 },
+  modalTodayBtn: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#E8F7F1',
+  },
+  modalTodayBtnText: { color: '#3AB795', fontWeight: '600', fontSize: 14 },
   totalsBlock: {
     borderTopWidth: 1,
     borderTopColor: '#ddd',

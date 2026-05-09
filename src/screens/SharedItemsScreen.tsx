@@ -13,10 +13,13 @@ import RecentItemsRow from '../components/RecentItemsRow';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
 
+const MAX_QTY = 20;
+
 export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
   const { bill, addSharedItem, removeSharedItem, rememberItem } = useBill();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [qty, setQty] = useState(1);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   const toggle = (id: string) =>
@@ -35,12 +38,19 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
     const p = parseFloat(price);
     const ids = Object.keys(selected).filter((k) => selected[k]);
     if (!trimmed || isNaN(p) || p < 0 || ids.length === 0) return;
-    addSharedItem(trimmed, p, ids);
+    const count = Math.max(1, Math.min(MAX_QTY, qty));
+    for (let i = 0; i < count; i++) {
+      addSharedItem(trimmed, p, ids);
+    }
     rememberItem(trimmed, p);
     setName('');
     setPrice('');
+    setQty(1);
     setSelected({});
   };
+
+  const decQty = () => setQty((q) => Math.max(1, q - 1));
+  const incQty = () => setQty((q) => Math.min(MAX_QTY, q + 1));
 
   const pickRecent = (n: string, pr: number) => {
     setName(n);
@@ -50,11 +60,12 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
   const clear = () => {
     setName('');
     setPrice('');
+    setQty(1);
     setSelected({});
   };
 
   const hasInput =
-    name.length > 0 || price.length > 0 || Object.values(selected).some(Boolean);
+    name.length > 0 || price.length > 0 || qty > 1 || Object.values(selected).some(Boolean);
 
   const nameToLabel = (ids: string[]) =>
     ids
@@ -90,13 +101,32 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
               placeholder="Dish name (e.g. Calamari)"
               autoCapitalize="words"
             />
-            <TextInput
-              style={styles.input}
-              value={price}
-              onChangeText={setPrice}
-              placeholder="Total price"
-              keyboardType="decimal-pad"
-            />
+            <View style={styles.priceRow}>
+              <TextInput
+                style={[styles.input, styles.flex]}
+                value={price}
+                onChangeText={setPrice}
+                placeholder="Total price (per item)"
+                keyboardType="decimal-pad"
+              />
+              <View style={styles.qtyBox}>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={decQty}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.qtyBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.qtyValue}>{qty}</Text>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={incQty}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.qtyBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <View style={styles.rowBetween}>
               <Text style={styles.sectionLabel}>Split between</Text>
               <TouchableOpacity onPress={selectAll}>
@@ -172,6 +202,19 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center' },
   clearLink: { color: '#c62828', fontWeight: '600', fontSize: 14 },
+  priceRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  qtyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  qtyBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+  qtyBtnText: { fontSize: 18, fontWeight: '600', color: '#3AB795' },
+  qtyValue: { minWidth: 22, textAlign: 'center', fontSize: 16, fontWeight: '600' },
   sectionLabel: { fontSize: 14, fontWeight: '600', color: '#444' },
   link: { color: '#3AB795', fontWeight: '600' },
   input: {
