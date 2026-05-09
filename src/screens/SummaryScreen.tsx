@@ -24,8 +24,13 @@ const formatPickerLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
-  const { bill, resetBill } = useBill();
-  const { saveReceipt, ownerName, setOwnerName } = useReceipts();
+  const { bill, resetBill, editingReceiptId, clearEditing } = useBill();
+  const { saveReceipt, updateReceipt, receipts, ownerName, setOwnerName } = useReceipts();
+  const isEditing = editingReceiptId !== null;
+  const editingReceipt = useMemo(
+    () => (editingReceiptId ? receipts.find((r) => r.id === editingReceiptId) ?? null : null),
+    [receipts, editingReceiptId],
+  );
   const result = useMemo(() => calculateBreakdown(bill), [bill]);
   const [expected, setExpected] = useState('');
 
@@ -42,13 +47,26 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
+    if (isEditing) return;
     if (ownerPersonId) return;
     if (!ownerName) return;
     const match = bill.people.find(
       (p) => p.name.trim().toLowerCase() === ownerName.trim().toLowerCase(),
     );
     if (match) setOwnerPersonId(match.id);
-  }, [ownerName, bill.people, ownerPersonId]);
+  }, [isEditing, ownerName, bill.people, ownerPersonId]);
+
+  // Prefill the save form once when entering edit mode.
+  useEffect(() => {
+    if (!editingReceiptId) return;
+    const r = receipts.find((rr) => rr.id === editingReceiptId);
+    if (!r) return;
+    setRestaurant(r.restaurantName ?? '');
+    setNotes(r.notes ?? '');
+    setOwnerPersonId(r.ownerPersonId);
+    setReceiptDate(new Date(r.createdAt));
+    setSavedId(null);
+  }, [editingReceiptId]);
 
   const confirmReset = () => {
     Alert.alert(
@@ -71,7 +89,7 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
 
   const onSave = () => {
     if (bill.people.length === 0) return;
-    const receipt = saveReceipt({
+    const input = {
       restaurantName: restaurant.trim() || undefined,
       notes: notes.trim() || undefined,
       ownerPersonId,
@@ -82,12 +100,27 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
       grandTip: result.grandTip,
       grandTotal: result.grandTotal,
       createdAt: receiptDate.getTime(),
-    });
+    };
     if (ownerPersonId) {
       const owner = bill.people.find((p) => p.id === ownerPersonId);
       if (owner) setOwnerName(owner.name);
     }
+    if (isEditing && editingReceiptId) {
+      updateReceipt(editingReceiptId, input);
+      clearEditing();
+      resetBill();
+      navigation.navigate('ReceiptDetail', { receiptId: editingReceiptId });
+      return;
+    }
+    const receipt = saveReceipt(input);
     setSavedId(receipt.id);
+  };
+
+  const cancelEdit = () => {
+    clearEditing();
+    resetBill();
+    navigation.popToTop();
+    navigation.navigate('Receipts');
   };
 
   return (
@@ -101,6 +134,15 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
     >
+      {isEditing && (
+        <View style={styles.editBanner}>
+          <Text style={styles.editBannerText}>
+            ✎ Editing receipt
+            {editingReceipt?.restaurantName ? ` · ${editingReceipt.restaurantName}` : ''}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.settingsRow}>
         <Text style={styles.settingsText}>
           {bill.stateCode} · Tax {bill.taxRatePercent}% · Tip{' '}
@@ -211,10 +253,12 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
       </View>
 
       <View style={styles.saveBlock}>
-        <Text style={styles.saveTitle}>Save this receipt</Text>
-        <Text style={styles.saveHint}>
-          Optional. Keeps a copy on this phone for later reference.
-        </Text>
+        <Text style={styles.saveTitle}>{isEditing ? 'Receipt details' : 'Save this receipt'}</Text>
+        {!isEditing && (
+          <Text style={styles.saveHint}>
+            Optional. Keeps a copy on this phone for later reference.
+          </Text>
+        )}
         <TextInput
           style={styles.input}
           value={restaurant}
@@ -251,7 +295,7 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
             );
           })}
         </View>
-        {savedId ? (
+        {savedId && !isEditing ? (
           <View style={styles.savedRow}>
             <Text style={styles.savedText}>✓ Saved</Text>
             <TouchableOpacity
@@ -263,14 +307,22 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
           </View>
         ) : (
           <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-            <Text style={styles.saveBtnText}>Save receipt</Text>
+            <Text style={styles.saveBtnText}>
+              {isEditing ? 'Save changes' : 'Save receipt'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
-        <Text style={styles.resetBtnText}>Start new bill</Text>
-      </TouchableOpacity>
+      {isEditing ? (
+        <TouchableOpacity style={styles.resetBtn} onPress={cancelEdit}>
+          <Text style={styles.resetBtnText}>Cancel edit</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
+          <Text style={styles.resetBtnText}>Start new bill</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
 
     <Modal
@@ -324,6 +376,16 @@ const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 40 },
   settingsRow: { marginBottom: 12 },
   settingsText: { fontSize: 13, color: '#666' },
+  editBanner: {
+    backgroundColor: '#FFF8E1',
+    borderColor: '#F2C94C',
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  editBannerText: { fontSize: 13, fontWeight: '600', color: '#7A5C00' },
   card: {
     backgroundColor: '#fafafa',
     borderRadius: 10,

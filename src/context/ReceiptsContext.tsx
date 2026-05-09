@@ -16,6 +16,7 @@ type ReceiptsContextValue = {
   ownerName: string | null;
   loaded: boolean;
   saveReceipt: (input: SaveReceiptInput) => SavedReceipt;
+  updateReceipt: (id: string, input: SaveReceiptInput) => SavedReceipt | null;
   deleteReceipt: (id: string) => void;
   setOwnerName: (name: string | null) => void;
 };
@@ -82,6 +83,29 @@ export const ReceiptsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
         setReceipts((prev) => [receipt, ...prev]);
         return receipt;
+      },
+      updateReceipt: (id, input) => {
+        let updated: SavedReceipt | null = null;
+        setReceipts((prev) =>
+          prev.map((r) => {
+            if (r.id !== id) return r;
+            updated = {
+              id: r.id,
+              createdAt: input.createdAt ?? r.createdAt,
+              restaurantName: input.restaurantName,
+              notes: input.notes,
+              ownerPersonId: input.ownerPersonId,
+              bill: input.bill,
+              breakdown: input.breakdown,
+              grandSubtotal: input.grandSubtotal,
+              grandTax: input.grandTax,
+              grandTip: input.grandTip,
+              grandTotal: input.grandTotal,
+            };
+            return updated;
+          }),
+        );
+        return updated;
       },
       deleteReceipt: (id) => {
         setReceipts((prev) => prev.filter((r) => r.id !== id));

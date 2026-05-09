@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getStateByCode } from '../data/stateTaxRates';
-import { Bill, Item, Person, RecentItem, SharedItem, TipMode } from '../types/bill';
+import { Bill, Item, Person, RecentItem, SavedReceipt, SharedItem, TipMode } from '../types/bill';
 
 const PREFS_KEY = 'bill-splitter:prefs:v1';
 const RECENT_ITEMS_MAX = 30;
@@ -39,6 +39,9 @@ type BillContextValue = {
   removeSharedItem: (id: string) => void;
   updateSharedItem: (id: string, patch: Partial<Omit<SharedItem, 'id'>>) => void;
   resetBill: () => void;
+  editingReceiptId: string | null;
+  loadFromReceipt: (receipt: SavedReceipt) => void;
+  clearEditing: () => void;
 };
 
 const BillContext = createContext<BillContextValue | null>(null);
@@ -50,6 +53,7 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sharedItems: [],
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
 
   const recentItems = useMemo<RecentItem[]>(() => {
     const tsOf = (id: string) => parseInt(id.split('-')[0] ?? '0', 10) || 0;
@@ -189,9 +193,29 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           people: [],
           sharedItems: [],
         }));
+        setEditingReceiptId(null);
       },
+      editingReceiptId,
+      loadFromReceipt: (receipt) => {
+        setBill({
+          stateCode: receipt.bill.stateCode,
+          taxRatePercent: receipt.bill.taxRatePercent,
+          tipMode: receipt.bill.tipMode,
+          tipValue: receipt.bill.tipValue,
+          people: receipt.bill.people.map((p) => ({
+            ...p,
+            items: p.items.map((i) => ({ ...i })),
+          })),
+          sharedItems: receipt.bill.sharedItems.map((s) => ({
+            ...s,
+            personIds: [...s.personIds],
+          })),
+        });
+        setEditingReceiptId(receipt.id);
+      },
+      clearEditing: () => setEditingReceiptId(null),
     }),
-    [bill, prefsLoaded, recentItems],
+    [bill, prefsLoaded, recentItems, editingReceiptId],
   );
 
   return <BillContext.Provider value={value}>{children}</BillContext.Provider>;

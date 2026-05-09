@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
 
@@ -23,10 +24,32 @@ const formatDateTime = (ts: number) =>
 export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'ReceiptDetail'>) {
   const { receiptId } = route.params;
   const { receipts, deleteReceipt } = useReceipts();
+  const { bill, loadFromReceipt } = useBill();
   const receipt = useMemo(
     () => receipts.find((r) => r.id === receiptId),
     [receipts, receiptId],
   );
+
+  const onEdit = () => {
+    if (!receipt) return;
+    const hasInProgress = bill.people.length > 0 || bill.sharedItems.length > 0;
+    const enter = () => {
+      loadFromReceipt(receipt);
+      navigation.navigate('Summary');
+    };
+    if (hasInProgress) {
+      Alert.alert(
+        'Discard current bill?',
+        'You have a bill in progress. Editing this receipt will discard it.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Discard & edit', style: 'destructive', onPress: enter },
+        ],
+      );
+    } else {
+      enter();
+    }
+  };
 
   useLayoutEffect(() => {
     if (!receipt) return;
@@ -140,6 +163,10 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
         </View>
       </View>
 
+      <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
+        <Text style={styles.editBtnText}>Edit receipt</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
         <Text style={styles.deleteBtnText}>Delete receipt</Text>
       </TouchableOpacity>
@@ -208,6 +235,14 @@ const styles = StyleSheet.create({
   grandLabel: { fontSize: 17, fontWeight: '700' },
   grandValue: { fontSize: 19, fontWeight: '700', color: '#3AB795' },
   empty: { color: '#999', textAlign: 'center', marginTop: 40 },
+  editBtn: {
+    backgroundColor: '#3AB795',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  editBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   deleteBtn: {
     borderWidth: 1,
     borderColor: '#c62828',
