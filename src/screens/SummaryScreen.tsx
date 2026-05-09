@@ -110,6 +110,7 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
 
       {result.rows.map((row) => {
         const person = bill.people.find((p) => p.id === row.personId);
+        const sharedForPerson = bill.sharedItems.filter((s) => s.personIds.includes(row.personId));
         return (
           <TouchableOpacity
             key={row.personId}
@@ -142,14 +143,25 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
               <Text style={styles.breakdownLabel}>Tip</Text>
               <Text style={styles.breakdownValue}>${row.tip.toFixed(2)}</Text>
             </View>
-            {person && person.items.length > 0 && (
+            {((person && person.items.length > 0) || sharedForPerson.length > 0) && (
               <View style={styles.itemsList}>
-                {person.items.map((it) => (
+                {person?.items.map((it) => (
                   <View key={it.id} style={styles.itemLineRow}>
                     <Text style={styles.itemLineName} numberOfLines={1}>
                       • {it.name}
                     </Text>
                     <Text style={styles.itemLinePrice}>${it.price.toFixed(2)}</Text>
+                  </View>
+                ))}
+                {sharedForPerson.map((s) => (
+                  <View key={s.id} style={styles.itemLineRow}>
+                    <Text style={styles.itemLineName} numberOfLines={1}>
+                      • {s.name}{' '}
+                      <Text style={styles.itemLineShared}>(shared 1/{s.personIds.length})</Text>
+                    </Text>
+                    <Text style={styles.itemLinePrice}>
+                      ${(s.totalPrice / s.personIds.length).toFixed(2)}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -348,6 +360,7 @@ const styles = StyleSheet.create({
   },
   itemLineName: { flex: 1, fontSize: 13, color: '#444', paddingRight: 8 },
   itemLinePrice: { fontSize: 13, color: '#666', fontVariant: ['tabular-nums'] },
+  itemLineShared: { fontSize: 12, color: '#888', fontStyle: 'italic' },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
