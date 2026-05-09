@@ -45,7 +45,6 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
       </TouchableOpacity>
 
       <View style={styles.heroBlock}>
-        <Text style={styles.heroEmoji}>🧾</Text>
         <Text style={styles.appName}>Split It</Text>
         <Text style={styles.tagline}>Settle the bill, fast.</Text>
       </View>
@@ -94,12 +93,11 @@ const styles = StyleSheet.create({
   gearText: { fontSize: 22, color: '#888' },
   heroBlock: {
     alignItems: 'center',
-    marginTop: 80,
-    marginBottom: 36,
+    marginTop: 100,
+    marginBottom: 48,
   },
-  heroEmoji: { fontSize: 64, marginBottom: 12 },
-  appName: { fontSize: 32, fontWeight: '800', color: '#222' },
-  tagline: { fontSize: 15, color: '#777', marginTop: 4 },
+  appName: { fontSize: 36, fontWeight: '800', color: '#222' },
+  tagline: { fontSize: 15, color: '#777', marginTop: 6 },
   actions: { gap: 12, marginTop: 12 },
   primaryBtn: {
     backgroundColor: '#3AB795',

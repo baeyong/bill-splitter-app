@@ -9,16 +9,14 @@ const RECENT_ITEMS_MAX = 30;
 type StoredPrefs = {
   stateCode: string;
   taxRatePercent: number;
-  tipMode: TipMode;
-  tipValue: number;
 };
 
 const DEFAULT_STATE_CODE = 'CA';
+const DEFAULT_TIP_MODE: TipMode = 'percent';
+const DEFAULT_TIP_VALUE = 18;
 const defaultPrefs: StoredPrefs = {
   stateCode: DEFAULT_STATE_CODE,
   taxRatePercent: getStateByCode(DEFAULT_STATE_CODE)?.rate ?? 0,
-  tipMode: 'percent',
-  tipValue: 18,
 };
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -49,6 +47,8 @@ const BillContext = createContext<BillContextValue | null>(null);
 export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [bill, setBill] = useState<Bill>({
     ...defaultPrefs,
+    tipMode: DEFAULT_TIP_MODE,
+    tipValue: DEFAULT_TIP_VALUE,
     people: [],
     sharedItems: [],
   });
@@ -99,11 +99,9 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const prefs: StoredPrefs = {
       stateCode: bill.stateCode,
       taxRatePercent: bill.taxRatePercent,
-      tipMode: bill.tipMode,
-      tipValue: bill.tipValue,
     };
     AsyncStorage.setItem(PREFS_KEY, JSON.stringify(prefs)).catch(() => {});
-  }, [prefsLoaded, bill.stateCode, bill.taxRatePercent, bill.tipMode, bill.tipValue]);
+  }, [prefsLoaded, bill.stateCode, bill.taxRatePercent]);
 
   const value = useMemo<BillContextValue>(
     () => ({
@@ -188,8 +186,8 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setBill((prev) => ({
           stateCode: prev.stateCode,
           taxRatePercent: prev.taxRatePercent,
-          tipMode: prev.tipMode,
-          tipValue: prev.tipValue,
+          tipMode: DEFAULT_TIP_MODE,
+          tipValue: DEFAULT_TIP_VALUE,
           people: [],
           sharedItems: [],
         }));

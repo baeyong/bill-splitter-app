@@ -41,8 +41,7 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
     >
       <View style={styles.header}>
         <Text style={styles.headerText}>
-          {bill.stateCode} · Tax {bill.taxRatePercent}% · Tip{' '}
-          {bill.tipMode === 'percent' ? `${bill.tipValue}%` : `$${bill.tipValue.toFixed(2)}`}
+          {bill.stateCode} · Tax {bill.taxRatePercent}%
         </Text>
         <TouchableOpacity onPress={() => navigation.navigate('Setup')}>
           <Text style={styles.headerEdit}>Edit</Text>

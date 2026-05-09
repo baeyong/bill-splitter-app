@@ -24,8 +24,22 @@ const formatPickerLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
-  const { bill, resetBill, editingReceiptId, clearEditing } = useBill();
+  const { bill, resetBill, editingReceiptId, clearEditing, setTipMode, setTipValue } = useBill();
   const { saveReceipt, updateReceipt, receipts, ownerName, setOwnerName } = useReceipts();
+  const [tipInput, setTipInput] = useState(String(bill.tipValue));
+
+  // Re-sync only when the mode changes or we're entering edit mode —
+  // not on every keystroke (which would clobber the user mid-type).
+  useEffect(() => {
+    setTipInput(String(bill.tipValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bill.tipMode, editingReceiptId]);
+
+  const onTipChange = (s: string) => {
+    setTipInput(s);
+    const n = parseFloat(s);
+    if (!isNaN(n) && n >= 0) setTipValue(n);
+  };
   const isEditing = editingReceiptId !== null;
   const editingReceipt = useMemo(
     () => (editingReceiptId ? receipts.find((r) => r.id === editingReceiptId) ?? null : null),
@@ -145,9 +159,47 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
 
       <View style={styles.settingsRow}>
         <Text style={styles.settingsText}>
-          {bill.stateCode} · Tax {bill.taxRatePercent}% · Tip{' '}
-          {bill.tipMode === 'percent' ? `${bill.tipValue}%` : `$${bill.tipValue.toFixed(2)}`}
+          {bill.stateCode} · Tax {bill.taxRatePercent}%
         </Text>
+      </View>
+
+      <View style={styles.tipBlock}>
+        <Text style={styles.tipLabel}>Tip</Text>
+        <View style={styles.tipModeToggle}>
+          <TouchableOpacity
+            style={[styles.tipModeBtn, bill.tipMode === 'percent' && styles.tipModeBtnOn]}
+            onPress={() => setTipMode('percent')}
+          >
+            <Text
+              style={[
+                styles.tipModeBtnText,
+                bill.tipMode === 'percent' && styles.tipModeBtnTextOn,
+              ]}
+            >
+              %
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tipModeBtn, bill.tipMode === 'amount' && styles.tipModeBtnOn]}
+            onPress={() => setTipMode('amount')}
+          >
+            <Text
+              style={[
+                styles.tipModeBtnText,
+                bill.tipMode === 'amount' && styles.tipModeBtnTextOn,
+              ]}
+            >
+              $
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={styles.tipInput}
+          keyboardType="decimal-pad"
+          value={tipInput}
+          onChangeText={onTipChange}
+          placeholder={bill.tipMode === 'percent' ? '18' : '10.00'}
+        />
       </View>
 
       {result.rows.map((row) => {
@@ -374,8 +426,44 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 16, paddingBottom: 40 },
-  settingsRow: { marginBottom: 12 },
+  settingsRow: { marginBottom: 8 },
   settingsText: { fontSize: 13, color: '#666' },
+  tipBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F1F5F4',
+    borderRadius: 10,
+  },
+  tipLabel: { fontSize: 14, fontWeight: '700', color: '#444' },
+  tipModeToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#cfdcd6',
+  },
+  tipModeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+  },
+  tipModeBtnOn: { backgroundColor: '#3AB795' },
+  tipModeBtnText: { fontSize: 15, color: '#666', fontWeight: '600' },
+  tipModeBtnTextOn: { color: '#fff' },
+  tipInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
   editBanner: {
     backgroundColor: '#FFF8E1',
     borderColor: '#F2C94C',

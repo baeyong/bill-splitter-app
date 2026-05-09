@@ -39,7 +39,7 @@ ReceiptDetail can re-enter Summary in **edit mode** by calling `loadFromReceipt(
 
 Both wrap the navigator. Order matters: `BillProvider` outside, `ReceiptsProvider` inside.
 
-- **[BillContext](src/context/BillContext.tsx)** — the *in-progress* bill. Holds people, items, shared items, and tax/tip prefs. The `recentItems` field on the context is **derived** (via `useMemo`) from `bill.people[*].items` + `bill.sharedItems` — there's no separate cache to manage. Items are deduped by lowercased name and sorted newest-first using the timestamp embedded in each item's id. Removing an item also removes its chip suggestion. Tax/tip prefs persist across restarts via AsyncStorage (`bill-splitter:prefs:v1`).
+- **[BillContext](src/context/BillContext.tsx)** — the *in-progress* bill. Holds people, items, shared items, tax/state prefs, and the bill's tip. **Tax/state persist** to AsyncStorage (`bill-splitter:prefs:v1`); **tip is per-bill** — defaults to 18% percent, reset to that on every `resetBill`, and lives only on `bill` (never written to AsyncStorage). The `recentItems` field on the context is **derived** (via `useMemo`) from `bill.people[*].items` + `bill.sharedItems` — there's no separate cache to manage. Items are deduped by lowercased name and sorted newest-first using the timestamp embedded in each item's id. Removing an item also removes its chip suggestion.
 - **[ReceiptsContext](src/context/ReceiptsContext.tsx)** — *saved* receipts and the global owner name. `saveReceipt` takes a `SavedReceipt` minus `id`/`createdAt` and prepends it to the list. Storage keys: `bill-splitter:receipts:v1`, `bill-splitter:owner-name:v1`.
 
 When bumping a storage schema, change the `:vN` suffix rather than mutating in place — old installs still have the old shape.

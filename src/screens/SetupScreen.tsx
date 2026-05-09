@@ -8,21 +8,19 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
 } from 'react-native';
+import { View } from 'react-native';
 import { useBill } from '../context/BillContext';
 import { STATE_TAX_RATES } from '../data/stateTaxRates';
 import { ScreenProps } from '../types/navigation';
 
 export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
-  const { bill, prefsLoaded, setStateCode, setTaxRatePercent, setTipMode, setTipValue } = useBill();
+  const { bill, prefsLoaded, setStateCode, setTaxRatePercent } = useBill();
   const [taxInput, setTaxInput] = useState(String(bill.taxRatePercent));
-  const [tipInput, setTipInput] = useState(String(bill.tipValue));
 
   useEffect(() => {
     if (!prefsLoaded) return;
     setTaxInput(String(bill.taxRatePercent));
-    setTipInput(String(bill.tipValue));
   }, [prefsLoaded]);
 
   const onTaxChange = (s: string) => {
@@ -31,20 +29,9 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
     if (!isNaN(n) && n >= 0) setTaxRatePercent(n);
   };
 
-  const onTipChange = (s: string) => {
-    setTipInput(s);
-    const n = parseFloat(s);
-    if (!isNaN(n) && n >= 0) setTipValue(n);
-  };
-
   const commitTax = () => {
     const n = parseFloat(taxInput);
     if (isNaN(n) || n < 0) setTaxInput(String(bill.taxRatePercent));
-  };
-
-  const commitTip = () => {
-    const n = parseFloat(tipInput);
-    if (isNaN(n) || n < 0) setTipInput(String(bill.tipValue));
   };
 
   return (
@@ -87,49 +74,14 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
           placeholder="7.25"
         />
 
-        <Text style={styles.sectionLabel}>Tip</Text>
-        <View style={styles.tipModeRow}>
-          <TouchableOpacity
-            style={[styles.tipModeBtn, bill.tipMode === 'percent' && styles.tipModeBtnActive]}
-            onPress={() => setTipMode('percent')}
-          >
-            <Text
-              style={[
-                styles.tipModeText,
-                bill.tipMode === 'percent' && styles.tipModeTextActive,
-              ]}
-            >
-              %
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tipModeBtn, bill.tipMode === 'amount' && styles.tipModeBtnActive]}
-            onPress={() => setTipMode('amount')}
-          >
-            <Text
-              style={[
-                styles.tipModeText,
-                bill.tipMode === 'amount' && styles.tipModeTextActive,
-              ]}
-            >
-              $
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={tipInput}
-          onChangeText={onTipChange}
-          onBlur={commitTip}
-          placeholder={bill.tipMode === 'percent' ? '18' : '10.00'}
-        />
+        <Text style={styles.hint}>
+          Tip is set per-bill on the Summary screen, since you usually pick it after the meal.
+        </Text>
 
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={() => {
             commitTax();
-            commitTip();
             if (navigation.canGoBack()) navigation.goBack();
             else navigation.navigate('Home');
           }}
@@ -145,7 +97,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 20, paddingBottom: 40 },
   sectionLabel: { fontSize: 16, fontWeight: '600', marginTop: 20, marginBottom: 6 },
-  hint: { fontSize: 13, color: '#777', marginBottom: 8 },
+  hint: { fontSize: 13, color: '#777', marginTop: 8, marginBottom: 8 },
   pickerWrap: {
     borderWidth: 1,
     borderColor: '#ddd',
@@ -160,17 +112,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
-  tipModeRow: { flexDirection: 'row', marginBottom: 8 },
-  tipModeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    alignItems: 'center',
-  },
-  tipModeBtnActive: { backgroundColor: '#3AB795', borderColor: '#3AB795' },
-  tipModeText: { fontSize: 16, color: '#333' },
-  tipModeTextActive: { color: '#fff', fontWeight: '600' },
   primaryBtn: {
     marginTop: 30,
     backgroundColor: '#3AB795',
