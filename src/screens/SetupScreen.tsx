@@ -1,5 +1,5 @@
 import { Picker } from '@react-native-picker/picker';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,9 +15,15 @@ import { STATE_TAX_RATES } from '../data/stateTaxRates';
 import { ScreenProps } from '../types/navigation';
 
 export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
-  const { bill, setStateCode, setTaxRatePercent, setTipMode, setTipValue } = useBill();
+  const { bill, prefsLoaded, setStateCode, setTaxRatePercent, setTipMode, setTipValue } = useBill();
   const [taxInput, setTaxInput] = useState(String(bill.taxRatePercent));
   const [tipInput, setTipInput] = useState(String(bill.tipValue));
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    setTaxInput(String(bill.taxRatePercent));
+    setTipInput(String(bill.tipValue));
+  }, [prefsLoaded]);
 
   const onTaxChange = (s: string) => {
     setTaxInput(s);
