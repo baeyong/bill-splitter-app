@@ -30,7 +30,8 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const [useTip, setUseTip] = useState(true);
 
   // Tax only makes sense as a rate, which needs a subtotal to divide by.
-  const taxBase = result?.subtotal ?? result?.items.reduce((sum, i) => sum + i.price, 0) ?? 0;
+  const itemsTotal = result?.items.reduce((sum, i) => sum + i.price * i.quantity, 0) ?? 0;
+  const taxBase = result?.subtotal ?? itemsTotal;
   const canApplyTax = result?.tax !== undefined && taxBase > 0;
   const canApplyTip = result?.tip !== undefined && result.tip > 0;
 
@@ -93,8 +94,6 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
     navigation.navigate('AssignItems', { items: result.items });
   };
 
-  const itemsTotal = result?.items.reduce((sum, i) => sum + i.price, 0) ?? 0;
-
   return (
     <View style={styles.flex}>
       <ScrollView
@@ -151,9 +150,11 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
               {result.items.map((item) => (
                 <View key={item.id} style={styles.itemPreviewRow}>
                   <Text style={styles.itemPreviewName} numberOfLines={1}>
-                    {item.name}
+                    {item.quantity > 1 ? `${item.quantity} × ${item.name}` : item.name}
                   </Text>
-                  <Text style={styles.itemPreviewPrice}>${item.price.toFixed(2)}</Text>
+                  <Text style={styles.itemPreviewPrice}>
+                    ${(item.price * item.quantity).toFixed(2)}
+                  </Text>
                 </View>
               ))}
             </View>

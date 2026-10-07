@@ -76,7 +76,7 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 [parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and sends it to Claude (`claude-opus-5-5`) through `@anthropic-ai/sdk`, using structured outputs (`output_config.format`) so the reply is guaranteed to match `RECEIPT_SCHEMA`. Things to know about it:
 
-- **Quantity is expanded client-side.** The model returns `{name, price, quantity}` with `price` as the *unit* price; `toScannedItems` emits `quantity` separate `ScannedItem`s. That's deliberate — it's what lets two beers on one receipt line go to two different people during assignment. Don't collapse it back into a quantity field.
+- **A receipt line stays one `ScannedItem` with a `quantity`.** `price` is the *unit* price. AssignItems shows "3 × Soda" as one card and lets the user hand units out per person ("Alice 2, Bob 1"), or switch to sharing the whole line evenly. Only at commit is each unit expanded into its own entry — the same shape the manual quantity stepper produces — so nothing downstream knows about quantity.
 - **Effort is `low` on purpose.** Reading printed text is extraction, not reasoning, and the user is waiting on a spinner. Raise `EFFORT` before reaching for a different model if receipts start misreading.
 - **Refusal fallback is on** (`fallbacks: 'default'` + the `server-side-fallback-2026-07-01` beta), so a safety-classifier false positive is retried on another model inside the same call instead of failing the scan. That's why it calls `client.beta.messages.create`.
 - **Every object in `RECEIPT_SCHEMA` needs `additionalProperties: false`** — structured outputs rejects the schema otherwise.

@@ -2,17 +2,19 @@
 // is turned into regular Items / SharedItems on BillContext once the user has
 // assigned everything, and then discarded.
 
+/** One receipt line. `price` is the price of ONE unit, not the line total. */
 export type ScannedItem = {
   id: string;
   name: string;
   price: number;
+  quantity: number;
 };
 
 export type ScanResult = {
   restaurantName?: string;
   /**
-   * One entry per physical thing someone ate. A "2 × Taco" line on the receipt
-   * is expanded into two entries so each can go to a different person.
+   * One entry per receipt line, as printed. A "2 × Taco" line stays one entry
+   * with quantity 2; AssignItems hands the units out per person.
    */
   items: ScannedItem[];
   subtotal?: number;

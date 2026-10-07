@@ -19,8 +19,7 @@ const JPEG_QUALITY = 0.7;
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
-// Quantity is expanded into repeated items client-side, so a single line can be
-// split across people (two beers, one each).
+// Matches the quantity stepper's cap on the manual item screens.
 const MAX_QUANTITY = 20;
 
 export class ReceiptScanError extends Error {
@@ -106,11 +105,9 @@ const toScannedItems = (raw: unknown): ScannedItem[] => {
     if (!name || price === undefined) continue;
 
     const rawQty = typeof entry?.quantity === 'number' ? Math.floor(entry.quantity) : 1;
-    const qty = Math.max(1, Math.min(MAX_QUANTITY, isFinite(rawQty) ? rawQty : 1));
+    const quantity = Math.max(1, Math.min(MAX_QUANTITY, isFinite(rawQty) ? rawQty : 1));
 
-    for (let i = 0; i < qty; i++) {
-      out.push({ id: genId(), name, price });
-    }
+    out.push({ id: genId(), name, price, quantity });
   }
 
   return out;
