@@ -32,7 +32,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/withSandboxingDisabled.js"
+      "./plugins/withSandboxingDisabled.js",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Split It uses the camera to photograph a receipt so it can read the items off it.",
+          "photosPermission": "Split It needs access to your photos so you can pick a receipt you already took.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

@@ -5,11 +5,13 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BillProvider } from './src/context/BillContext';
 import { ReceiptsProvider } from './src/context/ReceiptsContext';
+import AssignItemsScreen from './src/screens/AssignItemsScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
 import PersonItemsScreen from './src/screens/PersonItemsScreen';
 import ReceiptDetailScreen from './src/screens/ReceiptDetailScreen';
 import ReceiptsScreen from './src/screens/ReceiptsScreen';
+import ScanReceiptScreen from './src/screens/ScanReceiptScreen';
 import SetupScreen from './src/screens/SetupScreen';
 import SharedItemsScreen from './src/screens/SharedItemsScreen';
 import SummaryScreen from './src/screens/SummaryScreen';
@@ -45,6 +47,12 @@ export default function App() {
                 component={SharedItemsScreen}
                 options={{ title: 'Shared Items' }}
               />
+              <Stack.Screen
+                name="ScanReceipt"
+                component={ScanReceiptScreen}
+                options={{ title: 'Scan Receipt' }}
+              />
+              <Stack.Screen name="AssignItems" component={AssignItemsScreen} />
               <Stack.Screen
                 name="Summary"
                 component={SummaryScreen}

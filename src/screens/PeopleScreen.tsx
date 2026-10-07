@@ -63,6 +63,16 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
         </TouchableOpacity>
       </View>
 
+      {bill.people.length > 0 && (
+        <TouchableOpacity
+          style={styles.scanBtn}
+          onPress={() => navigation.navigate('ScanReceipt')}
+        >
+          <Text style={styles.scanBtnText}>📷  Scan a receipt</Text>
+          <Text style={styles.scanBtnHint}>Read the items off a photo instead of typing</Text>
+        </TouchableOpacity>
+      )}
+
       <FlatList
         data={bill.people}
         keyExtractor={(p) => p.id}
@@ -154,6 +164,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   addBtnText: { color: '#fff', fontWeight: '600' },
+  scanBtn: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#E8F7F1',
+    borderWidth: 1,
+    borderColor: '#C9E7DA',
+  },
+  scanBtnText: { color: '#3AB795', fontWeight: '700', fontSize: 15 },
+  scanBtnHint: { color: '#678', fontSize: 12, marginTop: 2 },
   list: { paddingHorizontal: 16, paddingBottom: 16 },
   empty: { color: '#999', textAlign: 'center', marginTop: 40 },
   personRow: {

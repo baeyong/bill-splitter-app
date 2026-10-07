@@ -6,6 +6,7 @@ Each person gets their own items, shared dishes are divided among whoever ate th
 
 ## Features
 
+- **Scan the receipt** — add everyone who ate, photograph the receipt, and the items are read off it. You then walk through them one at a time saying who had what (or tap several people to split it). Tax and tip printed on the receipt can be applied to the bill.
 - **Per-person items** — each person has their own tab; tap a name to add what they ordered.
 - **Shared items** — pick which people split a dish; the total is divided evenly among them.
 - **State-aware tax** — pick your state on the Setup screen and the typical combined rate prefills. Override if you're outside the main metro.
@@ -16,16 +17,19 @@ Each person gets their own items, shared dishes are divided among whoever ate th
 - **Saved receipts** — optionally save a receipt with a restaurant name and notes; tag which person was you.
 - **Receipt history** — list view + calendar view per month, with your monthly spend at the top.
 
-All saved data lives on your device (AsyncStorage). Nothing is uploaded.
+All saved data lives on your device (AsyncStorage). The one exception is receipt scanning: if you use it, that photo is uploaded to Google's Gemini API to be read. Everything else — people, items, saved receipts — stays on the phone.
 
 ## Running it
 
 ```bash
 npm install
+cp .env.example .env.local   # then paste in a Gemini API key
 npm start
 ```
 
 Then scan the QR code with Expo Go on your phone.
+
+Receipt scanning needs a free Gemini API key from [AI Studio](https://aistudio.google.com/apikey) in `.env.local`. Without one the rest of the app works normally and the scan screen tells you the key is missing. For EAS builds the key has to exist at build time too — set it as an EAS environment variable, since `.env.local` is not uploaded with the build.
 
 ## Stack
 
@@ -39,11 +43,12 @@ Then scan the QR code with Expo Go on your phone.
 ```
 src/
   context/        # BillContext (in-progress bill) and ReceiptsContext (saved history)
-  screens/        # Setup, People, PersonItems, SharedItems, Summary, Receipts, ReceiptDetail
+  screens/        # Setup, People, PersonItems, SharedItems, ScanReceipt, AssignItems,
+                  # Summary, Receipts, ReceiptDetail
   components/     # shared UI (RecentItemsRow)
   data/           # state tax rates
-  types/          # bill + navigation types
-  utils/          # calculate.ts — tax/tip math
+  types/          # bill + scan + navigation types
+  utils/          # calculate.ts — tax/tip math; parseReceipt.ts — receipt OCR
 ```
 
 See [CLAUDE.md](CLAUDE.md) for a deeper architecture rundown.

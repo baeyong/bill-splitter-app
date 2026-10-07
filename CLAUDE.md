@@ -11,7 +11,11 @@ npx expo install <pkg> # add a dep — preferred over `npm install` so versions 
 npx tsc --noEmit       # typecheck (no test or lint scripts are configured)
 ```
 
-This is an Expo managed workflow project — there is no native iOS/Android source. `npx expo run:ios|android` are not part of the dev loop unless the user has set up a custom dev client.
+The dev loop is **Expo Go**, and keeping it that way is a live constraint — every dependency so far is either pure JS or an Expo SDK module that Expo Go already bundles. Adding a third-party native module would force everyone onto a custom dev client, so don't, without saying so explicitly.
+
+`ios/` **is** committed, despite that. It's generated output, not hand-maintained: the [prebuild-ios workflow](.github/workflows/prebuild-ios.yml) runs `expo prebuild` on a Linux runner and pushes the result, working around an SDK 54 EAS prebuild bug (and `expo prebuild` refuses to run from Windows). Re-run that workflow by hand after any `app.json` change that affects native config — including adding a config plugin — or EAS will build stale native config. Never edit `ios/` directly.
+
+Receipt scanning needs `EXPO_PUBLIC_GEMINI_API_KEY` in `.env.local` (see `.env.example`). Without it the app runs fine and only the scan screen complains.
 
 ## Architecture
 
@@ -22,10 +26,14 @@ Defined in [App.tsx](App.tsx). Flow:
 ```
 Home  ──► People ──► PersonItems
    │           ↘ SharedItems
-   │           ↘ Summary ──► Receipts ──► ReceiptDetail
-   │                                          │
-   │                                          ▼
-   │                              (Edit) ──► Summary  (edit mode)
+   │           ↘ ScanReceipt ──► AssignItems ──┐
+   │           ↘ Summary ◄─────────────────────┘
+   │                 │
+   │                 ▼
+   │              Receipts ──► ReceiptDetail
+   │                                │
+   │                                ▼
+   │                    (Edit) ──► Summary  (edit mode)
    │
    ├─► Setup           (gear icon — settings only; "Done" goes back)
    └─► Receipts        (skip-the-bill shortcut from Home)
@@ -62,6 +70,23 @@ The "Your spend this month" total in [ReceiptsScreen](src/screens/ReceiptsScreen
 
 A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-person share is `totalPrice / personIds.length`. When people are removed via `setPeople`, `BillContext` also prunes the removed ids out of every shared item's `personIds` — keep that invariant if you touch shared-item logic.
 
+### Receipt scanning is a funnel into the normal bill model
+
+[ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx) → [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) produces nothing new in the data model — it ends by creating ordinary `Item`s and `SharedItem`s. Everything downstream (calculate, Summary, saving) is untouched by this feature, and it should stay that way.
+
+[parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and posts it to Gemini's `interactions` endpoint with a JSON schema. Two things about it:
+
+- **Quantity is expanded client-side.** The model returns `{name, price, quantity}` with `price` as the *unit* price; `toScannedItems` emits `quantity` separate `ScannedItem`s. That's deliberate — it's what lets two beers on one receipt line go to two different people during assignment. Don't collapse it back into a quantity field.
+- **Response reading is deliberately loose.** `extractOutputText` checks `interaction.output_text` first and then digs for any text-ish field. The interactions API is young; this is cheap insurance against a field rename, not accidental complexity.
+
+Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.ts` because none of them are persisted — a scan is transient, converted, and dropped.
+
+`applyScannedItems` on BillContext commits the whole assignment in **one** `setBill`. A scan is routinely 30+ lines and calling `addItem` per line would re-render that many times. One `personId` becomes an `Item`, two or more becomes a `SharedItem` — that mapping is the only place the two item kinds are chosen automatically, so keep it in sync with what the manual screens do.
+
+`setTaxFromAmount` back-computes `taxRatePercent` from the receipt's printed tax so it fits the existing percent-based model. It persists like any other rate override (see the prefs note above), which is why the toggle that triggers it is labelled as replacing the saved rate rather than applied silently.
+
+**This is the only feature that sends anything off the device.** The README says so explicitly; if you change what's uploaded, change that line too.
+
 ### State tax rates
 
 [src/data/stateTaxRates.ts](src/data/stateTaxRates.ts) holds combined state + main-metro rates. Selecting a state on Setup pre-fills the rate; the user can override. When DC/HI/etc. behave specially (DC uses the restaurant meals rate, HI uses GET), the comments in that file explain why — preserve them.
@@ -76,4 +101,6 @@ Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom
 
 ### Deployment
 
-Expo Go for development, Render + TestFlight for production. Default to the Expo managed workflow — don't introduce native modules without a clear reason.
+Expo Go for development, EAS Build + TestFlight for production. Default to the Expo managed workflow — don't introduce third-party native modules without a clear reason (see Commands above for why).
+
+`EXPO_PUBLIC_*` vars are inlined into the bundle at build time, so `EXPO_PUBLIC_GEMINI_API_KEY` must be set as an EAS environment variable for production builds — `.env.local` is not uploaded. It also means the key ships inside the IPA and is extractable; it's restricted in Google Cloud Console rather than kept secret. If this app ever gets distributed beyond a small group, that key needs to move behind a proxy.

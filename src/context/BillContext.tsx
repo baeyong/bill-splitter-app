@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getStateByCode } from '../data/stateTaxRates';
 import { Bill, Item, Person, RecentItem, SavedReceipt, SharedItem, TipMode } from '../types/bill';
+import { ScannedAssignment } from '../types/scan';
 
 const PREFS_KEY = 'bill-splitter:prefs:v1';
 const RECENT_ITEMS_MAX = 30;
@@ -36,6 +37,8 @@ type BillContextValue = {
   addSharedItem: (name: string, totalPrice: number, personIds: string[]) => void;
   removeSharedItem: (id: string) => void;
   updateSharedItem: (id: string, patch: Partial<Omit<SharedItem, 'id'>>) => void;
+  applyScannedItems: (entries: ScannedAssignment[]) => void;
+  setTaxFromAmount: (taxAmount: number, subtotal: number) => void;
   resetBill: () => void;
   editingReceiptId: string | null;
   loadFromReceipt: (receipt: SavedReceipt) => void;
@@ -181,6 +184,50 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...prev,
           sharedItems: prev.sharedItems.map((s) => (s.id === id ? { ...s, ...patch } : s)),
         }));
+      },
+      // Folds a whole scanned receipt in with one state update — a scan can be
+      // 30+ lines, and calling addItem per line would re-render that many times.
+      applyScannedItems: (entries) => {
+        setBill((prev) => {
+          const validIds = new Set(prev.people.map((p) => p.id));
+          const newItemsByPerson = new Map<string, Item[]>();
+          const newShared: SharedItem[] = [];
+
+          for (const entry of entries) {
+            const name = entry.name.trim();
+            const ids = entry.personIds.filter((id) => validIds.has(id));
+            if (!name || ids.length === 0 || !(entry.price >= 0)) continue;
+
+            if (ids.length === 1) {
+              const list = newItemsByPerson.get(ids[0]) ?? [];
+              list.push({ id: genId(), name, price: entry.price });
+              newItemsByPerson.set(ids[0], list);
+            } else {
+              newShared.push({
+                id: genId(),
+                name,
+                totalPrice: entry.price,
+                personIds: ids,
+              });
+            }
+          }
+
+          return {
+            ...prev,
+            people: prev.people.map((p) => {
+              const added = newItemsByPerson.get(p.id);
+              return added ? { ...p, items: [...p.items, ...added] } : p;
+            }),
+            sharedItems: [...prev.sharedItems, ...newShared],
+          };
+        });
+      },
+      // Back-computes a rate from a receipt's printed tax so it fits the
+      // existing percent-based model. Persists like any other rate override.
+      setTaxFromAmount: (taxAmount, subtotal) => {
+        if (!(subtotal > 0) || !(taxAmount >= 0)) return;
+        const rate = Math.round((taxAmount / subtotal) * 10000) / 100;
+        setBill((prev) => ({ ...prev, taxRatePercent: rate }));
       },
       resetBill: () => {
         setBill((prev) => ({

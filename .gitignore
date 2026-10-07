@@ -30,7 +30,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files — these hold the Gemini API key, never commit them
+.env
 .env*.local
 
 # typescript
