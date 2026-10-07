@@ -13,17 +13,20 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBill } from '../context/BillContext';
-import { ScanResult } from '../types/scan';
+import { PendingScan } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
 import { ReceiptScanError, parseReceipt } from '../utils/parseReceipt';
 
 export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanReceipt'>) {
-  const { bill, setTaxFromAmount, setTipMode, setTipValue } = useBill();
+  const { bill, setTaxFromAmount, setTipMode, setTipValue, pendingScan, setPendingScan } =
+    useBill();
   const insets = useSafeAreaInsets();
 
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
+  // Lives on BillContext, not here, so backing out to add a person keeps the
+  // photo and the (paid-for) result.
+  const imageUri = pendingScan?.imageUri ?? null;
+  const scanning = pendingScan?.scanning ?? false;
+  const result = pendingScan?.result ?? null;
   const [error, setError] = useState<string | null>(null);
 
   const [useTax, setUseTax] = useState(true);
@@ -35,9 +38,22 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const canApplyTax = result?.tax !== undefined && taxBase > 0;
   const canApplyTip = result?.tip !== undefined && result.tip > 0;
 
-  const reset = () => {
-    setResult(null);
+  const choosePhoto = (uri: string) => {
     setError(null);
+    setPendingScan({ imageUri: uri, scanning: false, result: null });
+  };
+
+  // A new photo throws away the current result, which cost a request — confirm
+  // first so a stray tap on Retake doesn't mean paying to scan again.
+  const confirmReplace = (then: () => void) => {
+    if (!result) {
+      then();
+      return;
+    }
+    Alert.alert('Replace this scan?', 'The items already read from this receipt will be lost.', [
+      { text: 'Keep scan', style: 'cancel' },
+      { text: 'Replace', style: 'destructive', onPress: then },
+    ]);
   };
 
   const takePhoto = async () => {
@@ -51,34 +67,38 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
     }
     const shot = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 1 });
     if (shot.canceled || !shot.assets[0]) return;
-    reset();
-    setImageUri(shot.assets[0].uri);
+    choosePhoto(shot.assets[0].uri);
   };
 
   const pickPhoto = async () => {
     const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 1 });
     if (picked.canceled || !picked.assets[0]) return;
-    reset();
-    setImageUri(picked.assets[0].uri);
+    choosePhoto(picked.assets[0].uri);
   };
 
   const scan = async () => {
-    if (!imageUri) return;
-    setScanning(true);
+    const uri = imageUri;
+    if (!uri) return;
+    // Every update checks the photo is still the one being scanned: the user
+    // can leave and come back mid-request, and the result should still land —
+    // but not on top of a different photo they've since picked.
+    const update = (patch: Partial<PendingScan>) =>
+      setPendingScan((prev) => (prev && prev.imageUri === uri ? { ...prev, ...patch } : prev));
+
+    update({ scanning: true });
     setError(null);
     try {
-      const scanned = await parseReceipt(imageUri);
-      setResult(scanned);
+      const scanned = await parseReceipt(uri);
+      update({ scanning: false, result: scanned });
       setUseTax(true);
       setUseTip(true);
     } catch (err) {
+      update({ scanning: false });
       setError(
         err instanceof ReceiptScanError
           ? err.message
           : 'Something went wrong while scanning. Try again.',
       );
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -122,10 +142,18 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
         )}
 
         <View style={styles.pickRow}>
-          <TouchableOpacity style={styles.pickBtn} onPress={takePhoto} disabled={scanning}>
+          <TouchableOpacity
+            style={styles.pickBtn}
+            onPress={() => confirmReplace(takePhoto)}
+            disabled={scanning}
+          >
             <Text style={styles.pickBtnText}>{imageUri ? 'Retake' : 'Take photo'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.pickBtn} onPress={pickPhoto} disabled={scanning}>
+          <TouchableOpacity
+            style={styles.pickBtn}
+            onPress={() => confirmReplace(pickPhoto)}
+            disabled={scanning}
+          >
             <Text style={styles.pickBtnText}>Choose photo</Text>
           </TouchableOpacity>
         </View>

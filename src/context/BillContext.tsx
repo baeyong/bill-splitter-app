@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getStateByCode } from '../data/stateTaxRates';
 import { Bill, Item, Person, RecentItem, SavedReceipt, SharedItem, TipMode } from '../types/bill';
-import { ScannedAssignment } from '../types/scan';
+import { PendingScan, ScannedAssignment } from '../types/scan';
 
 const PREFS_KEY = 'bill-splitter:prefs:v1';
 const RECENT_ITEMS_MAX = 30;
@@ -38,6 +38,8 @@ type BillContextValue = {
   removeSharedItem: (id: string) => void;
   updateSharedItem: (id: string, patch: Partial<Omit<SharedItem, 'id'>>) => void;
   applyScannedItems: (entries: ScannedAssignment[]) => void;
+  pendingScan: PendingScan | null;
+  setPendingScan: React.Dispatch<React.SetStateAction<PendingScan | null>>;
   setTaxFromAmount: (taxAmount: number, subtotal: number) => void;
   resetBill: () => void;
   editingReceiptId: string | null;
@@ -57,6 +59,7 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
+  const [pendingScan, setPendingScan] = useState<PendingScan | null>(null);
 
   const recentItems = useMemo<RecentItem[]>(() => {
     const tsOf = (id: string) => parseInt(id.split('-')[0] ?? '0', 10) || 0;
@@ -221,7 +224,11 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sharedItems: [...prev.sharedItems, ...newShared],
           };
         });
+        // The scan is spent once its items are in the bill.
+        setPendingScan(null);
       },
+      pendingScan,
+      setPendingScan,
       // Back-computes a rate from a receipt's printed tax so it fits the
       // existing percent-based model. Persists like any other rate override.
       setTaxFromAmount: (taxAmount, subtotal) => {
@@ -239,6 +246,7 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           sharedItems: [],
         }));
         setEditingReceiptId(null);
+        setPendingScan(null);
       },
       editingReceiptId,
       loadFromReceipt: (receipt) => {
@@ -257,10 +265,11 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })),
         });
         setEditingReceiptId(receipt.id);
+        setPendingScan(null);
       },
       clearEditing: () => setEditingReceiptId(null),
     }),
-    [bill, prefsLoaded, recentItems, editingReceiptId],
+    [bill, prefsLoaded, recentItems, editingReceiptId, pendingScan],
   );
 
   return <BillContext.Provider value={value}>{children}</BillContext.Provider>;

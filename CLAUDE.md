@@ -84,6 +84,8 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.ts` because none of them are persisted — a scan is transient, converted, and dropped.
 
+The photo and result live on BillContext as `pendingScan` (memory only), not in ScanReceiptScreen's state, so backing out to add a person doesn't throw away a result that cost an API call. It's cleared by `applyScannedItems`, `resetBill` and `loadFromReceipt`; picking a new photo over an existing result asks first.
+
 `applyScannedItems` on BillContext commits the whole assignment in **one** `setBill`. A scan is routinely 30+ lines and calling `addItem` per line would re-render that many times. One `personId` becomes an `Item`, two or more becomes a `SharedItem` — that mapping is the only place the two item kinds are chosen automatically, so keep it in sync with what the manual screens do.
 
 `setTaxFromAmount` back-computes `taxRatePercent` from the receipt's printed tax so it fits the existing percent-based model. It persists like any other rate override (see the prefs note above), which is why the toggle that triggers it is labelled as replacing the saved rate rather than applied silently.

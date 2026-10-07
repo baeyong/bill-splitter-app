@@ -23,6 +23,17 @@ export type ScanResult = {
   total?: number;
 };
 
+/**
+ * The scan in progress for the current bill, held on BillContext so leaving
+ * the scan screen (say, to add a forgotten person) doesn't throw away a paid-for
+ * result. In memory only, like the rest of the in-progress bill.
+ */
+export type PendingScan = {
+  imageUri: string;
+  scanning: boolean;
+  result: ScanResult | null;
+};
+
 /** What the user was doing when the scan failed — drives the retry copy. */
 export type ScanErrorKind = 'config' | 'network' | 'api' | 'parse' | 'empty';
 
