@@ -6,12 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.baeyong.billsplitter",
@@ -25,7 +19,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -34,13 +27,24 @@
     "plugins": [
       "./plugins/withSandboxingDisabled.js",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": "Split It uses the camera to photograph a receipt so it can read the items off it.",
           "photosPermission": "Split It needs access to your photos so you can pick a receipt you already took.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-splash-screen"
     ],
     "extra": {
       "eas": {

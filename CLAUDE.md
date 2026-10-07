@@ -80,6 +80,7 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 - **Effort is `low` on purpose.** Reading printed text is extraction, not reasoning, and the user is waiting on a spinner. Raise `EFFORT` before reaching for a different model if receipts start misreading.
 - **Refusal fallback is on** (`fallbacks: 'default'` + the `server-side-fallback-2026-07-01` beta), so a safety-classifier false positive is retried on another model inside the same call instead of failing the scan. That's why it calls `client.beta.messages.create`.
 - **Every object in `RECEIPT_SCHEMA` needs `additionalProperties: false`** — structured outputs rejects the schema otherwise.
+- **[metro.config.js](metro.config.js) forces the SDK's CommonJS build.** The ESM build has a circular import that crashes dev builds at startup (`Cannot read property 'BetaToolRunner' of undefined`) when React Refresh reads its exports mid-cycle. Don't remove the override without re-testing in Expo Go.
 
 Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.ts` because none of them are persisted — a scan is transient, converted, and dropped.
 
