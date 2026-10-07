@@ -46,8 +46,12 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
-    <key>RCTNewArchEnabled</key>
-    <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>Split It uses the camera to photograph a receipt so it can read the items off it.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Split It needs access to your photos so you can pick a receipt you already took.</string>
+    <key>RCTMetroPort</key>
+    <string>$(RCT_METRO_PORT)</string>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
