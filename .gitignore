@@ -30,7 +30,7 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files — these hold the Gemini API key, never commit them
+# local env files — these hold the Anthropic API key, never commit them
 .env
 .env*.local
 

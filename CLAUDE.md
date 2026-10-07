@@ -15,7 +15,7 @@ The dev loop is **Expo Go**, and keeping it that way is a live constraint — ev
 
 `ios/` **is** committed, despite that. It's generated output, not hand-maintained: the [prebuild-ios workflow](.github/workflows/prebuild-ios.yml) runs `expo prebuild` on a Linux runner and pushes the result, working around an SDK 54 EAS prebuild bug (and `expo prebuild` refuses to run from Windows). Re-run that workflow by hand after any `app.json` change that affects native config — including adding a config plugin — or EAS will build stale native config. Never edit `ios/` directly.
 
-Receipt scanning needs `EXPO_PUBLIC_GEMINI_API_KEY` in `.env.local` (see `.env.example`). Without it the app runs fine and only the scan screen complains.
+Receipt scanning needs `EXPO_PUBLIC_ANTHROPIC_API_KEY` in `.env.local` (see `.env.example`). Without it the app runs fine and only the scan screen complains.
 
 ## Architecture
 
@@ -74,10 +74,12 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 [ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx) → [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) produces nothing new in the data model — it ends by creating ordinary `Item`s and `SharedItem`s. Everything downstream (calculate, Summary, saving) is untouched by this feature, and it should stay that way.
 
-[parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and posts it to Gemini's `interactions` endpoint with a JSON schema. Two things about it:
+[parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and sends it to Claude (`claude-opus-5-5`) through `@anthropic-ai/sdk`, using structured outputs (`output_config.format`) so the reply is guaranteed to match `RECEIPT_SCHEMA`. Things to know about it:
 
 - **Quantity is expanded client-side.** The model returns `{name, price, quantity}` with `price` as the *unit* price; `toScannedItems` emits `quantity` separate `ScannedItem`s. That's deliberate — it's what lets two beers on one receipt line go to two different people during assignment. Don't collapse it back into a quantity field.
-- **Response reading is deliberately loose.** `extractOutputText` checks `interaction.output_text` first and then digs for any text-ish field. The interactions API is young; this is cheap insurance against a field rename, not accidental complexity.
+- **Effort is `low` on purpose.** Reading printed text is extraction, not reasoning, and the user is waiting on a spinner. Raise `EFFORT` before reaching for a different model if receipts start misreading.
+- **Refusal fallback is on** (`fallbacks: 'default'` + the `server-side-fallback-2026-07-01` beta), so a safety-classifier false positive is retried on another model inside the same call instead of failing the scan. That's why it calls `client.beta.messages.create`.
+- **Every object in `RECEIPT_SCHEMA` needs `additionalProperties: false`** — structured outputs rejects the schema otherwise.
 
 Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.ts` because none of them are persisted — a scan is transient, converted, and dropped.
 
@@ -103,4 +105,4 @@ Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom
 
 Expo Go for development, EAS Build + TestFlight for production. Default to the Expo managed workflow — don't introduce third-party native modules without a clear reason (see Commands above for why).
 
-`EXPO_PUBLIC_*` vars are inlined into the bundle at build time, so `EXPO_PUBLIC_GEMINI_API_KEY` must be set as an EAS environment variable for production builds — `.env.local` is not uploaded. It also means the key ships inside the IPA and is extractable; it's restricted in Google Cloud Console rather than kept secret. If this app ever gets distributed beyond a small group, that key needs to move behind a proxy.
+`EXPO_PUBLIC_*` vars are inlined into the bundle at build time, so `EXPO_PUBLIC_ANTHROPIC_API_KEY` must be set as an EAS environment variable for production builds — `.env.local` is not uploaded. It also means the key ships inside the IPA and is extractable, and unlike a Google key it **can't be restricted to the app's bundle ID** — anyone who pulls it out can spend on the account. Mitigation is a dedicated Claude Console workspace with a low spend limit. If this app ever gets distributed beyond a small group, that key needs to move behind a proxy.

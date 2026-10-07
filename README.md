@@ -17,19 +17,19 @@ Each person gets their own items, shared dishes are divided among whoever ate th
 - **Saved receipts** — optionally save a receipt with a restaurant name and notes; tag which person was you.
 - **Receipt history** — list view + calendar view per month, with your monthly spend at the top.
 
-All saved data lives on your device (AsyncStorage). The one exception is receipt scanning: if you use it, that photo is uploaded to Google's Gemini API to be read. Everything else — people, items, saved receipts — stays on the phone.
+All saved data lives on your device (AsyncStorage). The one exception is receipt scanning: if you use it, that photo is uploaded to Anthropic's Claude API to be read. Everything else — people, items, saved receipts — stays on the phone.
 
 ## Running it
 
 ```bash
 npm install
-cp .env.example .env.local   # then paste in a Gemini API key
+cp .env.example .env.local   # then paste in an Anthropic API key
 npm start
 ```
 
 Then scan the QR code with Expo Go on your phone.
 
-Receipt scanning needs a free Gemini API key from [AI Studio](https://aistudio.google.com/apikey) in `.env.local`. Without one the rest of the app works normally and the scan screen tells you the key is missing. For EAS builds the key has to exist at build time too — set it as an EAS environment variable, since `.env.local` is not uploaded with the build.
+Receipt scanning needs an Anthropic API key from the [Claude Console](https://platform.claude.com/settings/keys) in `.env.local`. It's pay-as-you-go — there's no free tier — so a scan costs a few cents. Without one the rest of the app works normally and the scan screen tells you the key is missing. For EAS builds the key has to exist at build time too — set it as an EAS environment variable, since `.env.local` is not uploaded with the build.
 
 ## Stack
 

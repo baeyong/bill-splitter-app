@@ -110,7 +110,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
               time and say who had what.
             </Text>
             <Text style={styles.introNote}>
-              The photo is sent to Google's Gemini API to be read. Nothing else in the app leaves
+              The photo is sent to Anthropic's Claude API to be read. Nothing else in the app leaves
               your phone.
             </Text>
           </View>
