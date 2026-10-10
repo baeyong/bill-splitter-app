@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { usePreventRemove } from '@react-navigation/native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -24,7 +25,7 @@ const formatPickerLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
-  const { bill, resetBill, editingReceiptId, clearEditing, setTipMode, setTipValue } = useBill();
+  const { bill, resetBill, editingReceiptId, setTipMode, setTipValue } = useBill();
   const { saveReceipt, updateReceipt, receipts, ownerName, setOwnerName } = useReceipts();
   const [tipInput, setTipInput] = useState(String(bill.tipValue));
 
@@ -56,7 +57,6 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const [restaurant, setRestaurant] = useState('');
   const [notes, setNotes] = useState('');
   const [ownerPersonId, setOwnerPersonId] = useState<string | undefined>(undefined);
-  const [savedId, setSavedId] = useState<string | null>(null);
   const [receiptDate, setReceiptDate] = useState<Date>(() => new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
@@ -79,13 +79,53 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     setNotes(r.notes ?? '');
     setOwnerPersonId(r.ownerPersonId);
     setReceiptDate(new Date(r.createdAt));
-    setSavedId(null);
   }, [editingReceiptId]);
+
+  const isDirty = useMemo(() => {
+    if (!editingReceipt) return false;
+    return (
+      JSON.stringify(bill) !== JSON.stringify(editingReceipt.bill) ||
+      restaurant.trim() !== (editingReceipt.restaurantName ?? '') ||
+      notes.trim() !== (editingReceipt.notes ?? '') ||
+      ownerPersonId !== editingReceipt.ownerPersonId ||
+      receiptDate.getTime() !== editingReceipt.createdAt
+    );
+  }, [editingReceipt, bill, restaurant, notes, ownerPersonId, receiptDate]);
+
+  // Clearing the bill while this screen is still animating out would flash an
+  // empty summary, so the reset waits until it unmounts.
+  const resetOnUnmount = useRef(false);
+  const resetBillRef = useRef(resetBill);
+  resetBillRef.current = resetBill;
+  useEffect(
+    () => () => {
+      if (resetOnUnmount.current) resetBillRef.current();
+    },
+    [],
+  );
+
+  // Every way out of edit mode — Save, Cancel, the back arrow, a swipe — lands
+  // here, so the receipt can never stay half-loaded into the next new bill.
+  const leavingAfterSave = useRef(false);
+  usePreventRemove(isEditing, ({ data }) => {
+    const leave = () => {
+      resetOnUnmount.current = true;
+      navigation.dispatch(data.action);
+    };
+    if (leavingAfterSave.current || !isDirty) {
+      leave();
+      return;
+    }
+    Alert.alert('Discard changes?', "Your edits to this receipt won't be saved.", [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: leave },
+    ]);
+  });
 
   const confirmReset = () => {
     Alert.alert(
       'Start new bill?',
-      'This clears all people, items, and shared dishes. Tax/tip settings stay.',
+      'This clears all people, items, and shared dishes. Your tax settings stay.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -121,20 +161,21 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     }
     if (isEditing && editingReceiptId) {
       updateReceipt(editingReceiptId, input);
-      clearEditing();
-      resetBill();
-      navigation.navigate('ReceiptDetail', { receiptId: editingReceiptId });
+      leavingAfterSave.current = true;
+      navigation.popTo('ReceiptDetail', { receiptId: editingReceiptId, justSaved: true });
       return;
     }
     const receipt = saveReceipt(input);
-    setSavedId(receipt.id);
-  };
-
-  const cancelEdit = () => {
-    clearEditing();
-    resetBill();
-    navigation.popToTop();
-    navigation.navigate('Receipts');
+    resetOnUnmount.current = true;
+    // The bill is done — land on the saved copy, with Receipts → Home behind it.
+    navigation.reset({
+      index: 2,
+      routes: [
+        { name: 'Home' },
+        { name: 'Receipts' },
+        { name: 'ReceiptDetail', params: { receiptId: receipt.id, justSaved: true } },
+      ],
+    });
   };
 
   return (
@@ -347,27 +388,13 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
             );
           })}
         </View>
-        {savedId && !isEditing ? (
-          <View style={styles.savedRow}>
-            <Text style={styles.savedText}>✓ Saved</Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Receipts')}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.savedLink}>View receipts</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-            <Text style={styles.saveBtnText}>
-              {isEditing ? 'Save changes' : 'Save receipt'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
+          <Text style={styles.saveBtnText}>{isEditing ? 'Save changes' : 'Save receipt'}</Text>
+        </TouchableOpacity>
       </View>
 
       {isEditing ? (
-        <TouchableOpacity style={styles.resetBtn} onPress={cancelEdit}>
+        <TouchableOpacity style={styles.resetBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.resetBtnText}>Cancel edit</Text>
         </TouchableOpacity>
       ) : (
@@ -617,14 +644,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   saveBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  savedRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  savedText: { color: '#3AB795', fontWeight: '700', fontSize: 15 },
-  savedLink: { color: '#3AB795', fontWeight: '600', fontSize: 15 },
   resetBtn: {
     borderWidth: 1,
     borderColor: '#c62828',

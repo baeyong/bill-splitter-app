@@ -44,7 +44,6 @@ type BillContextValue = {
   resetBill: () => void;
   editingReceiptId: string | null;
   loadFromReceipt: (receipt: SavedReceipt) => void;
-  clearEditing: () => void;
 };
 
 const BillContext = createContext<BillContextValue | null>(null);
@@ -57,6 +56,9 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
     people: [],
     sharedItems: [],
   });
+  // The saved defaults, kept apart from `bill` so loading an old receipt for
+  // editing (which carries its own state/rate) never overwrites them.
+  const [prefs, setPrefs] = useState<StoredPrefs>(defaultPrefs);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
   const [pendingScan, setPendingScan] = useState<PendingScan | null>(null);
@@ -90,6 +92,7 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const raw = await AsyncStorage.getItem(PREFS_KEY);
         if (raw) {
           const stored = JSON.parse(raw) as StoredPrefs;
+          setPrefs(stored);
           setBill((prev) => ({ ...prev, ...stored }));
         }
       } catch {
@@ -102,12 +105,15 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!prefsLoaded) return;
-    const prefs: StoredPrefs = {
-      stateCode: bill.stateCode,
-      taxRatePercent: bill.taxRatePercent,
-    };
     AsyncStorage.setItem(PREFS_KEY, JSON.stringify(prefs)).catch(() => {});
-  }, [prefsLoaded, bill.stateCode, bill.taxRatePercent]);
+  }, [prefsLoaded, prefs]);
+
+  // Tax changes apply to the bill on screen, and become the saved default only
+  // for a new bill — tweaking an old receipt's rate is a one-off.
+  const setTax = (patch: Partial<StoredPrefs>) => {
+    setBill((prev) => ({ ...prev, ...patch }));
+    if (editingReceiptId === null) setPrefs((prev) => ({ ...prev, ...patch }));
+  };
 
   const value = useMemo<BillContextValue>(
     () => ({
@@ -115,10 +121,9 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
       prefsLoaded,
       recentItems,
       setStateCode: (code) => {
-        const rate = getStateByCode(code)?.rate ?? 0;
-        setBill((prev) => ({ ...prev, stateCode: code, taxRatePercent: rate }));
+        setTax({ stateCode: code, taxRatePercent: getStateByCode(code)?.rate ?? 0 });
       },
-      setTaxRatePercent: (rate) => setBill((prev) => ({ ...prev, taxRatePercent: rate })),
+      setTaxRatePercent: (rate) => setTax({ taxRatePercent: rate }),
       setTipMode: (mode) => setBill((prev) => ({ ...prev, tipMode: mode })),
       setTipValue: (v) => setBill((prev) => ({ ...prev, tipValue: v })),
       setPeople: (names) => {
@@ -233,18 +238,16 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // existing percent-based model. Persists like any other rate override.
       setTaxFromAmount: (taxAmount, subtotal) => {
         if (!(subtotal > 0) || !(taxAmount >= 0)) return;
-        const rate = Math.round((taxAmount / subtotal) * 10000) / 100;
-        setBill((prev) => ({ ...prev, taxRatePercent: rate }));
+        setTax({ taxRatePercent: Math.round((taxAmount / subtotal) * 10000) / 100 });
       },
       resetBill: () => {
-        setBill((prev) => ({
-          stateCode: prev.stateCode,
-          taxRatePercent: prev.taxRatePercent,
+        setBill({
+          ...prefs,
           tipMode: DEFAULT_TIP_MODE,
           tipValue: DEFAULT_TIP_VALUE,
           people: [],
           sharedItems: [],
-        }));
+        });
         setEditingReceiptId(null);
         setPendingScan(null);
       },
@@ -267,9 +270,8 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setEditingReceiptId(receipt.id);
         setPendingScan(null);
       },
-      clearEditing: () => setEditingReceiptId(null),
     }),
-    [bill, prefsLoaded, recentItems, editingReceiptId, pendingScan],
+    [bill, prefs, prefsLoaded, recentItems, editingReceiptId, pendingScan],
   );
 
   return <BillContext.Provider value={value}>{children}</BillContext.Provider>;

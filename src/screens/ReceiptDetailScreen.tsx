@@ -22,7 +22,7 @@ const formatDateTime = (ts: number) =>
   });
 
 export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'ReceiptDetail'>) {
-  const { receiptId } = route.params;
+  const { receiptId, justSaved } = route.params;
   const { receipts, deleteReceipt } = useReceipts();
   const { bill, loadFromReceipt } = useBill();
   const receipt = useMemo(
@@ -90,6 +90,11 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
+      {justSaved && (
+        <View style={styles.savedBanner}>
+          <Text style={styles.savedBannerText}>✓ Receipt saved</Text>
+        </View>
+      )}
       <Text style={styles.metaTop}>{formatDateTime(receipt.createdAt)}</Text>
       <Text style={styles.settingsText}>
         {receipt.bill.stateCode} · Tax {receipt.bill.taxRatePercent}% · Tip{' '}
@@ -177,6 +182,14 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 16, paddingBottom: 40 },
+  savedBanner: {
+    backgroundColor: '#E8F7F1',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  savedBannerText: { fontSize: 14, fontWeight: '700', color: '#3AB795' },
   metaTop: { fontSize: 14, fontWeight: '600', color: '#444' },
   settingsText: { fontSize: 13, color: '#666', marginTop: 2, marginBottom: 14 },
   youCard: {

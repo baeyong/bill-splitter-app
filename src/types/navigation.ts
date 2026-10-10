@@ -12,7 +12,8 @@ export type RootStackParamList = {
   AssignItems: { items: ScannedItem[] };
   Summary: undefined;
   Receipts: undefined;
-  ReceiptDetail: { receiptId: string };
+  // justSaved shows a confirmation banner on arrival from Summary.
+  ReceiptDetail: { receiptId: string; justSaved?: boolean };
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

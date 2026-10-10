@@ -41,13 +41,17 @@ Home  ──► People ──► PersonItems
 
 `Home` is the initial route — it's the entry point with two big CTAs ("New bill" → People; "View receipts" → Receipts) and a settings gear → Setup. Setup is no longer a flow step; it's a settings screen reached only via the gear or via the People screen's "Edit" link. `RootStackParamList` in [src/types/navigation.ts](src/types/navigation.ts) is the single source of truth for routes — add new screens there and in `App.tsx`.
 
-ReceiptDetail can re-enter Summary in **edit mode** by calling `loadFromReceipt(receipt)` (see BillContext) — Summary then shows a yellow banner and the save button calls `updateReceipt` instead of `saveReceipt`. See `editingReceiptId` and the prefill effect in [SummaryScreen](src/screens/SummaryScreen.tsx).
+ReceiptDetail can re-enter Summary in **edit mode** by calling `loadFromReceipt(receipt)` (see BillContext) — Summary then shows a yellow banner and the save button calls `updateReceipt` instead of `saveReceipt`. See `editingReceiptId` and the prefill effect in [SummaryScreen](src/screens/SummaryScreen.tsx). Every exit from edit mode (Save, Cancel, back arrow, swipe) goes through one `usePreventRemove` handler that asks before discarding unsaved edits and resets the bill once Summary unmounts — so an edited receipt never leaks into the next new bill.
+
+Saving a *new* receipt resets the stack to `Home → Receipts → ReceiptDetail` and clears the bill. Until then, an unsaved bill stays in memory and Home offers "Continue bill" rather than reopening it as new.
+
+**`navigate()` pushes in React Navigation 7** — it does not go back to a screen already lower in the stack. Use `popTo` / `goBack` / `reset` when the intent is "return to".
 
 ### Two AsyncStorage-backed contexts
 
 Both wrap the navigator. Order matters: `BillProvider` outside, `ReceiptsProvider` inside.
 
-- **[BillContext](src/context/BillContext.tsx)** — the *in-progress* bill. Holds people, items, shared items, tax/state prefs, and the bill's tip. **Tax/state persist** to AsyncStorage (`bill-splitter:prefs:v1`); **tip is per-bill** — defaults to 18% percent, reset to that on every `resetBill`, and lives only on `bill` (never written to AsyncStorage). The `recentItems` field on the context is **derived** (via `useMemo`) from `bill.people[*].items` + `bill.sharedItems` — there's no separate cache to manage. Items are deduped by lowercased name and sorted newest-first using the timestamp embedded in each item's id. Removing an item also removes its chip suggestion.
+- **[BillContext](src/context/BillContext.tsx)** — the *in-progress* bill. Holds people, items, shared items, tax/state prefs, and the bill's tip. **Tax/state persist** to AsyncStorage (`bill-splitter:prefs:v1`) via a separate `prefs` state — changes made while editing a saved receipt apply to that receipt only and never become the default; **tip is per-bill** — defaults to 18% percent, reset to that on every `resetBill`, and lives only on `bill` (never written to AsyncStorage). The `recentItems` field on the context is **derived** (via `useMemo`) from `bill.people[*].items` + `bill.sharedItems` — there's no separate cache to manage. Items are deduped by lowercased name and sorted newest-first using the timestamp embedded in each item's id. Removing an item also removes its chip suggestion.
 - **[ReceiptsContext](src/context/ReceiptsContext.tsx)** — *saved* receipts and the global owner name. `saveReceipt` takes a `SavedReceipt` minus `id`/`createdAt` and prepends it to the list. Storage keys: `bill-splitter:receipts:v1`, `bill-splitter:owner-name:v1`.
 
 When bumping a storage schema, change the `:vN` suffix rather than mutating in place — old installs still have the old shape.
