@@ -17,6 +17,7 @@ import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
 import { ScannedAssignment } from '../types/scan';
 import { calculateBreakdown } from '../utils/calculate';
+import { MAX_ITEM_NAME, parsePrice, priceError } from '../utils/money';
 import { ReceiptRow, rowsFromBill } from '../utils/receiptRows';
 
 // Matches the quantity stepper's cap on the other item screens.
@@ -200,8 +201,9 @@ function LineEditor({
   );
   const [counts, setCounts] = useState<Record<string, number>>(row?.owned ?? {});
 
-  const price = parseFloat(priceText);
-  const priceValid = !isNaN(price) && price >= 0;
+  const price = parsePrice(priceText);
+  const priceValid = !isNaN(price);
+  const priceWarning = priceError(priceText);
   const mode: LineEdit['mode'] = quantity === 1 || shareEvenly ? 'pick' : 'units';
   const handedOut = Object.values(counts).reduce((sum, n) => sum + n, 0);
   const unitsLeft = quantity - handedOut;
@@ -252,6 +254,7 @@ function LineEditor({
               onChangeText={setName}
               placeholder="Item name"
               autoCapitalize="words"
+              maxLength={MAX_ITEM_NAME}
             />
             <View style={styles.priceRow}>
               <TextInput
@@ -279,6 +282,7 @@ function LineEditor({
                 </TouchableOpacity>
               </View>
             </View>
+            {priceWarning && <Text style={styles.warn}>{priceWarning}</Text>}
             {priceValid && quantity > 1 && (
               <Text style={styles.note}>
                 ${price.toFixed(2)} each · ${(price * quantity).toFixed(2)} for the line
@@ -415,6 +419,7 @@ const styles = StyleSheet.create({
   qtyBtnText: { fontSize: 18, fontWeight: '600', color: '#3AB795' },
   qtyValue: { minWidth: 24, textAlign: 'center', fontSize: 16, fontWeight: '600' },
   note: { fontSize: 13, color: '#666' },
+  warn: { fontSize: 13, color: '#c62828' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionLabel: { fontSize: 14, fontWeight: '600', color: '#444' },
   leftText: { color: '#c77700', fontWeight: '600' },

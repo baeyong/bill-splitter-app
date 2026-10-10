@@ -1,5 +1,6 @@
 import { ReceiptLine } from '../types/bill';
 import { AssignProgress, ScannedAssignment } from '../types/scan';
+import { parsePrice } from './money';
 
 // Drops picks for anyone removed from the bill since the progress was saved.
 export const forPeople = (saved: AssignProgress, validIds: Set<string>): AssignProgress => ({
@@ -31,8 +32,8 @@ export const progressToBill = (
   // Every line, skipped ones too, so All items can show the whole receipt.
   const lines: ReceiptLine[] = [];
   for (const draft of progress.drafts) {
-    const price = parseFloat(draft.priceText);
-    if (isNaN(price) || price < 0) continue;
+    const price = parsePrice(draft.priceText);
+    if (isNaN(price)) continue;
     const name = draft.name.trim();
     const lineId = draft.id;
     lines.push({ id: lineId, name, price, quantity: draft.quantity });

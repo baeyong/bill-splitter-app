@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RecentItemsRow from '../components/RecentItemsRow';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
+import { MAX_ITEM_NAME, parsePrice, priceError } from '../utils/money';
 
 const MAX_QTY = 20;
 
@@ -45,9 +46,8 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
 
   const add = () => {
     const name = itemName.trim();
-    const price = parseFloat(itemPrice);
-    if (!name) return;
-    if (isNaN(price) || price < 0) return;
+    const price = parsePrice(itemPrice);
+    if (!name || isNaN(price)) return;
     const count = Math.max(1, Math.min(MAX_QTY, qty));
     for (let i = 0; i < count; i++) {
       addItem(person.id, name, price);
@@ -69,6 +69,8 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
   };
 
   const hasInput = itemName.length > 0 || itemPrice.length > 0 || qty > 1;
+  const canAdd = itemName.trim().length > 0 && !isNaN(parsePrice(itemPrice));
+  const priceWarning = priceError(itemPrice);
 
   const decQty = () => setQty((q) => Math.max(1, q - 1));
   const incQty = () => setQty((q) => Math.min(MAX_QTY, q + 1));
@@ -94,6 +96,7 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
           onChangeText={setItemName}
           placeholder="Item name (e.g. Burger)"
           autoCapitalize="words"
+          maxLength={MAX_ITEM_NAME}
         />
         <View style={styles.row}>
           <TextInput
@@ -121,10 +124,15 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
               <Text style={styles.qtyBtnText}>+</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={add}>
+          <TouchableOpacity
+            style={[styles.addBtn, !canAdd && styles.btnDisabled]}
+            disabled={!canAdd}
+            onPress={add}
+          >
             <Text style={styles.addBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
+        {priceWarning && <Text style={styles.warn}>{priceWarning}</Text>}
       </View>
 
       <FlatList
@@ -205,6 +213,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   addBtnText: { color: '#fff', fontWeight: '600' },
+  btnDisabled: { opacity: 0.4 },
+  warn: { color: '#c62828', fontSize: 13 },
   list: { padding: 16 },
   empty: { color: '#999', textAlign: 'center', marginTop: 40 },
   itemRow: {

@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
+import { MAX_PERSON_NAME } from '../utils/money';
 
 export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
   const { bill, setPeople } = useBill();
@@ -56,6 +57,7 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
           value={nameInput}
           onChangeText={setNameInput}
           placeholder="Add a person"
+          maxLength={MAX_PERSON_NAME}
           onSubmitEditing={addName}
           returnKeyType="done"
           autoCapitalize="words"

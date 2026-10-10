@@ -1,5 +1,6 @@
 import { Bill, EntryRef, Person } from '../types/bill';
 import { AssignProgress } from '../types/scan';
+import { parsePrice } from './money';
 
 /**
  * One line of the receipt view — "3 × Coke" — however its units are split.
@@ -95,7 +96,7 @@ export const rowsFromBill = (bill: Bill): ReceiptRow[] => {
 /** The same view of a scan that's still being assigned on AssignItems. */
 export const rowsFromProgress = (progress: AssignProgress): ReceiptRow[] =>
   progress.drafts.map((d) => {
-    const price = parseFloat(d.priceText);
+    const price = parsePrice(d.priceText);
     const row = emptyRow(d.id, d.name, isNaN(price) ? 0 : price, d.quantity);
     row.lineId = d.id;
     if (progress.skipped[d.id]) {

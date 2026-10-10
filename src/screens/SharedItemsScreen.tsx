@@ -12,6 +12,7 @@ import {
 import RecentItemsRow from '../components/RecentItemsRow';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
+import { MAX_ITEM_NAME, parsePrice, priceError } from '../utils/money';
 
 const MAX_QTY = 20;
 
@@ -35,9 +36,9 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
 
   const add = () => {
     const trimmed = name.trim();
-    const p = parseFloat(price);
+    const p = parsePrice(price);
     const ids = Object.keys(selected).filter((k) => selected[k]);
-    if (!trimmed || isNaN(p) || p < 0 || ids.length === 0) return;
+    if (!trimmed || isNaN(p) || ids.length === 0) return;
     const count = Math.max(1, Math.min(MAX_QTY, qty));
     for (let i = 0; i < count; i++) {
       addSharedItem(trimmed, p, ids);
@@ -62,6 +63,12 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
     setQty(1);
     setSelected({});
   };
+
+  const pickedCount = Object.values(selected).filter(Boolean).length;
+  const canAdd = name.trim().length > 0 && !isNaN(parsePrice(price)) && pickedCount > 0;
+  const priceWarning = priceError(price);
+  // Name and price are in but nobody's picked — say why Add is greyed out.
+  const needsPeople = name.trim().length > 0 && !isNaN(parsePrice(price)) && pickedCount === 0;
 
   const hasInput =
     name.length > 0 || price.length > 0 || qty > 1 || Object.values(selected).some(Boolean);
@@ -99,6 +106,7 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
               onChangeText={setName}
               placeholder="Dish name (e.g. Calamari)"
               autoCapitalize="words"
+              maxLength={MAX_ITEM_NAME}
             />
             <View style={styles.priceRow}>
               <TextInput
@@ -126,6 +134,7 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
                 </TouchableOpacity>
               </View>
             </View>
+            {priceWarning && <Text style={styles.warn}>{priceWarning}</Text>}
             <View style={styles.rowBetween}>
               <Text style={styles.sectionLabel}>Split between</Text>
               <TouchableOpacity onPress={selectAll}>
@@ -146,7 +155,12 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
                 );
               })}
             </View>
-            <TouchableOpacity style={styles.addBtn} onPress={add}>
+            {needsPeople && <Text style={styles.hint}>Pick who shared it.</Text>}
+            <TouchableOpacity
+              style={[styles.addBtn, !canAdd && styles.btnDisabled]}
+              disabled={!canAdd}
+              onPress={add}
+            >
               <Text style={styles.addBtnText}>Add shared item</Text>
             </TouchableOpacity>
           </View>
@@ -242,6 +256,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addBtnText: { color: '#fff', fontWeight: '600' },
+  btnDisabled: { opacity: 0.4 },
+  warn: { color: '#c62828', fontSize: 13 },
+  hint: { color: '#777', fontSize: 13 },
   list: { padding: 16 },
   empty: { color: '#999', textAlign: 'center', marginTop: 40, paddingHorizontal: 20 },
   itemRow: {

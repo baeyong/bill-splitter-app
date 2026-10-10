@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  cardName: { fontSize: 17, fontWeight: '700' },
+  cardName: { flex: 1, marginRight: 8, fontSize: 17, fontWeight: '700' },
   cardTotal: { fontSize: 18, fontWeight: '700', color: '#3AB795' },
   breakdownRow: {
     flexDirection: 'row',

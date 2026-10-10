@@ -17,6 +17,7 @@ import { useBill } from '../context/BillContext';
 import { AssignDraft, AssignProgress } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
 import { forPeople, progressToBill } from '../utils/assignProgress';
+import { MAX_ITEM_NAME, parsePrice, priceError } from '../utils/money';
 import { rowsFromProgress } from '../utils/receiptRows';
 
 type Draft = AssignDraft;
@@ -217,8 +218,9 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
     else setIndex((i) => i + 1);
   };
 
-  const priceValue = parseFloat(current.priceText);
-  const priceValid = !isNaN(priceValue) && priceValue >= 0;
+  const priceValue = parsePrice(current.priceText);
+  const priceValid = !isNaN(priceValue);
+  const priceWarning = priceError(current.priceText);
   const lineTotal = priceValid ? priceValue * current.quantity : 0;
   const assignedEnough = perUnit ? unitsLeft === 0 : selected.length > 0;
   const canAdvance = assignedEnough && current.name.trim().length > 0 && priceValid;
@@ -246,6 +248,7 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
             onChangeText={(name) => setField({ name })}
             placeholder="Item name"
             autoCapitalize="words"
+            maxLength={MAX_ITEM_NAME}
           />
           <View style={styles.priceRow}>
             <View style={styles.flex}>
@@ -281,9 +284,7 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
               </View>
             </View>
           </View>
-          {!priceValid && current.priceText.length > 0 && (
-            <Text style={styles.warn}>That doesn't look like a price.</Text>
-          )}
+          {priceWarning && <Text style={styles.warn}>{priceWarning}</Text>}
           {priceValid && current.quantity > 1 && (
             <Text style={styles.lineTotal}>${lineTotal.toFixed(2)} total</Text>
           )}

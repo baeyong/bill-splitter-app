@@ -104,13 +104,21 @@ The photo and result live on BillContext as `pendingScan` (memory only), not in 
 
 [src/data/stateTaxRates.ts](src/data/stateTaxRates.ts) holds combined state + main-metro rates. Selecting a state on Setup pre-fills the rate; the user can override. When DC/HI/etc. behave specially (DC uses the restaurant meals rate, HI uses GET), the comments in that file explain why — preserve them.
 
+### Typed numbers and names
+
+Never `parseFloat` user input — it reads "4,50" (comma-decimal keypads) as 4 and "12abc" as 12. Use [money.ts](src/utils/money.ts): `parseAmount` for tip/tax/totals, `parsePrice` for item prices (also enforces the $10,000-per-item cap), and `priceError` for the inline warning. Add buttons stay disabled until input is valid rather than failing silently. Name inputs use `MAX_PERSON_NAME` / `MAX_ITEM_NAME` as `maxLength`. An empty tip box means no tip.
+
+### Tests
+
+`npm test` runs Jest via `jest-expo`. Pure logic lives in `src/utils` and is tested directly; BillContext is tested through `renderHook` with the AsyncStorage jest mock. Screens aren't unit-tested, so logic worth testing gets pulled out of them — that's why AssignItems' commit step lives in [assignProgress.ts](src/utils/assignProgress.ts). `tsconfig.json` lists `"types": ["jest"]` because TS 6 no longer picks up `@types` packages automatically.
+
 ### Keyboard handling
 
 All scroll/list containers use `keyboardShouldPersistTaps="handled"` and `keyboardDismissMode="on-drag"`. Buttons fire on the first tap with the keyboard up; scrolling dismisses. New screens with inputs should set both. Numeric keyboards on iOS have no Done key, so this is the user's primary dismiss path — don't regress it.
 
 ### Safe-area bottoms
 
-Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom` to the bar's `paddingBottom`. iPhones with a home indicator otherwise tuck the bar under it. Currently in [PersonItemsScreen](src/screens/PersonItemsScreen.tsx) and [PeopleScreen](src/screens/PeopleScreen.tsx) — apply the same pattern to any new screen with a fixed footer.
+Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom` to the bar's `paddingBottom`. iPhones with a home indicator otherwise tuck the bar under it. Currently in [PersonItemsScreen](src/screens/PersonItemsScreen.tsx), [PeopleScreen](src/screens/PeopleScreen.tsx), [ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx), [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) and [AllItemsScreen](src/screens/AllItemsScreen.tsx) — apply the same pattern to any new screen with a fixed footer.
 
 ### Deployment
 

@@ -12,6 +12,7 @@ import {
 import { View } from 'react-native';
 import { useBill } from '../context/BillContext';
 import { getStateByCode, STATE_TAX_RATES } from '../data/stateTaxRates';
+import { parseAmount } from '../utils/money';
 import { ScreenProps } from '../types/navigation';
 
 export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
@@ -35,13 +36,13 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
 
   const onTaxChange = (s: string) => {
     setTaxInput(s);
-    const n = parseFloat(s);
-    if (!isNaN(n) && n >= 0) setTaxRatePercent(n);
+    const n = parseAmount(s);
+    if (!isNaN(n)) setTaxRatePercent(n);
   };
 
   const commitTax = () => {
-    const n = parseFloat(taxInput);
-    if (isNaN(n) || n < 0) setTaxInput(String(savedTax.taxRatePercent));
+    const n = parseAmount(taxInput);
+    if (isNaN(n)) setTaxInput(String(savedTax.taxRatePercent));
   };
 
   return (

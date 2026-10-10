@@ -17,6 +17,7 @@ import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
 import { calculateBreakdown } from '../utils/calculate';
+import { parseAmount } from '../utils/money';
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const ymdLocal = (d: Date) =>
@@ -36,10 +37,11 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bill.tipMode, editingReceiptId]);
 
+  // An empty box means no tip — otherwise deleting "18" left the tip at 1%.
   const onTipChange = (s: string) => {
     setTipInput(s);
-    const n = parseFloat(s);
-    if (!isNaN(n) && n >= 0) setTipValue(n);
+    const n = s.trim() === '' ? 0 : parseAmount(s);
+    if (!isNaN(n)) setTipValue(n);
   };
   const isEditing = editingReceiptId !== null;
   const editingReceipt = useMemo(
@@ -49,7 +51,7 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const result = useMemo(() => calculateBreakdown(bill), [bill]);
   const [expected, setExpected] = useState('');
 
-  const expectedNum = parseFloat(expected);
+  const expectedNum = parseAmount(expected);
   const diff =
     !isNaN(expectedNum) && expectedNum >= 0 ? result.grandTotal - expectedNum : null;
   const matches = diff !== null && Math.abs(diff) < 0.01;
@@ -525,7 +527,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  cardName: { fontSize: 17, fontWeight: '700' },
+  // Shrinks/wraps instead of pushing the total off the card.
+  cardName: { flex: 1, marginRight: 8, fontSize: 17, fontWeight: '700' },
   cardTotal: { fontSize: 18, fontWeight: '700', color: '#3AB795' },
   breakdownRow: {
     flexDirection: 'row',
