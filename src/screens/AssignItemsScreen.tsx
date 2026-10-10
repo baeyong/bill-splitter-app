@@ -14,29 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ReceiptPhoto from '../components/ReceiptPhoto';
 import ReceiptView from '../components/ReceiptView';
 import { useBill } from '../context/BillContext';
-import { ReceiptLine } from '../types/bill';
-import { AssignDraft, AssignProgress, ScannedAssignment } from '../types/scan';
+import { AssignDraft, AssignProgress } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
+import { forPeople, progressToBill } from '../utils/assignProgress';
 import { rowsFromProgress } from '../utils/receiptRows';
 
 type Draft = AssignDraft;
-
-// Drops picks for anyone removed from the bill since the progress was saved.
-const forPeople = (saved: AssignProgress, validIds: Set<string>): AssignProgress => ({
-  ...saved,
-  assignments: Object.fromEntries(
-    Object.entries(saved.assignments).map(([line, ids]) => [
-      line,
-      ids.filter((id) => validIds.has(id)),
-    ]),
-  ),
-  unitCounts: Object.fromEntries(
-    Object.entries(saved.unitCounts).map(([line, counts]) => [
-      line,
-      Object.fromEntries(Object.entries(counts).filter(([id]) => validIds.has(id))),
-    ]),
-  ),
-});
 
 // Matches the quantity stepper's cap on the manual item screens.
 const MAX_QTY = 20;
@@ -200,30 +183,14 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
   // tick as the setState that records the skip, so `skipped` in scope is still
   // the pre-skip value.
   const commit = (finalSkipped: Record<string, boolean> = skipped) => {
-    // Each unit becomes its own entry — the same shape the manual quantity
-    // stepper produces.
-    const entries: ScannedAssignment[] = [];
-    // Every line, skipped ones too, so All items can show the whole receipt.
-    const lines: ReceiptLine[] = [];
-    for (const draft of drafts) {
-      const price = parseFloat(draft.priceText);
-      if (isNaN(price) || price < 0) continue;
-      const name = draft.name.trim();
-      const lineId = draft.id;
-      lines.push({ id: lineId, name, price, quantity: draft.quantity });
-      if (finalSkipped[draft.id]) continue;
-
-      if (draft.quantity > 1 && !shareEvenly[draft.id]) {
-        for (const [personId, n] of Object.entries(unitCounts[draft.id] ?? {})) {
-          for (let i = 0; i < n; i++) entries.push({ name, price, personIds: [personId], lineId });
-        }
-      } else {
-        const personIds = assignments[draft.id] ?? [];
-        if (personIds.length === 0) continue;
-        for (let i = 0; i < draft.quantity; i++) entries.push({ name, price, personIds, lineId });
-      }
-    }
-
+    const { entries, lines } = progressToBill({
+      drafts,
+      index,
+      assignments,
+      unitCounts,
+      shareEvenly,
+      skipped: finalSkipped,
+    });
     applyScannedItems(entries, lines);
 
     // Land on Summary with a sensible back path rather than walking back
