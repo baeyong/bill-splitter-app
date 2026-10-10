@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm start              # Expo dev server (use Expo Go to scan QR)
 npx expo start         # same
 npx expo install <pkg> # add a dep — preferred over `npm install` so versions match the Expo SDK
-npx tsc --noEmit       # typecheck (no test or lint scripts are configured)
+npx tsc --noEmit       # typecheck (no lint script is configured)
+npm test               # Jest (jest-expo): pure logic + BillContext via renderHook
 ```
 
 The dev loop is **Expo Go**, and keeping it that way is a live constraint — every dependency so far is either pure JS or an Expo SDK module that Expo Go already bundles. Adding a third-party native module would force everyone onto a custom dev client, so don't, without saying so explicitly.
@@ -26,6 +27,7 @@ Defined in [App.tsx](App.tsx). Flow:
 ```
 Home  ──► People ──► PersonItems
    │           ↘ SharedItems
+   │           ↘ AllItems   (also from Summary)
    │           ↘ ScanReceipt ──► AssignItems ──┐
    │           ↘ Summary ◄─────────────────────┘
    │                 │
@@ -76,7 +78,7 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 ### Receipt scanning is a funnel into the normal bill model
 
-[ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx) → [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) produces nothing new in the data model — it ends by creating ordinary `Item`s and `SharedItem`s. Everything downstream (calculate, Summary, saving) is untouched by this feature, and it should stay that way.
+[ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx) → [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) ends by creating ordinary `Item`s and `SharedItem`s, so `calculate` and the per-person Summary work exactly as for a hand-entered bill — keep it that way. The one addition is for *display*: each unit carries an optional `lineId`, and `bill.scan` keeps the receipt's lines (skipped ones too) and printed totals, so [AllItemsScreen](src/screens/AllItemsScreen.tsx) can show the bill laid out like the paper receipt. Both are optional and ignored by `calculate`; older bills without them fall back to grouping items by name + price.
 
 [parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and sends it to Claude (`claude-opus-5-5`) through `@anthropic-ai/sdk`, using structured outputs (`output_config.format`) so the reply is guaranteed to match `RECEIPT_SCHEMA`. Things to know about it:
 
@@ -88,11 +90,13 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.ts` because none of them are persisted — a scan is transient, converted, and dropped.
 
-The photo and result live on BillContext as `pendingScan` (memory only), not in ScanReceiptScreen's state, so backing out to add a person doesn't throw away a result that cost an API call. It's cleared by `applyScannedItems`, `resetBill` and `loadFromReceipt`; picking a new photo over an existing result asks first.
+The photo and result live on BillContext as `pendingScan` (memory only), not in ScanReceiptScreen's state, so backing out to add a person doesn't throw away a result that cost an API call. It's cleared by `applyScannedItems`, `resetBill` and `loadFromReceipt`; picking a new photo over an existing result asks first. It also carries `progress` — everything done on AssignItems (current line, picks, unit counts, skips, edits) — which AssignItems mirrors on every change and restores on mount, so backing out mid-assignment resumes rather than restarting.
 
-`applyScannedItems` on BillContext commits the whole assignment in **one** `setBill`. A scan is routinely 30+ lines and calling `addItem` per line would re-render that many times. One `personId` becomes an `Item`, two or more becomes a `SharedItem` — that mapping is the only place the two item kinds are chosen automatically, so keep it in sync with what the manual screens do.
+`applyScannedItems` on BillContext commits the whole assignment in **one** `setBill`. A scan is routinely 30+ lines and calling `addItem` per line would re-render that many times. One `personId` becomes an `Item`, two or more becomes a `SharedItem` — that mapping lives in `foldEntries` and is the only place the two item kinds are chosen automatically, so keep it in sync with what the manual screens do.
 
-`setTaxFromAmount` back-computes `taxRatePercent` from the receipt's printed tax so it fits the existing percent-based model. It persists like any other rate override (see the prefs note above), which is why the toggle that triggers it is labelled as replacing the saved rate rather than applied silently.
+[receiptRows.ts](src/utils/receiptRows.ts) folds units back into receipt lines — from the bill (`rowsFromBill`) or from in-progress assignment (`rowsFromProgress`) — and [ReceiptView](src/components/ReceiptView.tsx) renders them, for both All items and AssignItems' "See all" panel. Edits go through `changeLine`, which swaps every unit of a line (and corrects `bill.scan`'s copy of it) in one update. The photo outlives `pendingScan` as `scanPhotoUri`, memory only — it's never saved with a receipt.
+
+`setTaxFromAmount` back-computes `taxRatePercent` from the receipt's printed tax so it fits the existing percent-based model. It applies to **this bill only** and never touches the saved default — a rate derived from one receipt is often slightly off (untaxed items, discounts, a different city), and it used to silently become the rate for every later bill. Settings edits `savedTax` (the default), not the bill on screen, and flags a rate that differs from the state's with a Reset link.
 
 **This is the only feature that sends anything off the device.** The README says so explicitly; if you change what's uploaded, change that line too.
 

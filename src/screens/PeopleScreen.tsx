@@ -18,6 +18,8 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
   const { bill, setPeople } = useBill();
   const insets = useSafeAreaInsets();
   const [nameInput, setNameInput] = useState('');
+  const itemCount =
+    bill.people.reduce((sum, p) => sum + p.items.length, 0) + bill.sharedItems.length;
 
   const addName = () => {
     const trimmed = nameInput.trim();
@@ -70,6 +72,19 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
         >
           <Text style={styles.scanBtnText}>📷  Scan a receipt</Text>
           <Text style={styles.scanBtnHint}>Read the items off a photo instead of typing</Text>
+        </TouchableOpacity>
+      )}
+
+      {itemCount > 0 && (
+        <TouchableOpacity
+          style={styles.reviewRow}
+          onPress={() => navigation.navigate('AllItems')}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Text style={styles.reviewText}>
+            Review all {itemCount} item{itemCount === 1 ? '' : 's'}
+          </Text>
+          <Text style={styles.reviewText}>›</Text>
         </TouchableOpacity>
       )}
 
@@ -176,6 +191,14 @@ const styles = StyleSheet.create({
   },
   scanBtnText: { color: '#3AB795', fontWeight: '700', fontSize: 15 },
   scanBtnHint: { color: '#678', fontSize: 12, marginTop: 2 },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 6,
+  },
+  reviewText: { color: '#3AB795', fontWeight: '600', fontSize: 14 },
   list: { paddingHorizontal: 16, paddingBottom: 16 },
   empty: { color: '#999', textAlign: 'center', marginTop: 40 },
   personRow: {

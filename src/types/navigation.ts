@@ -7,6 +7,7 @@ export type RootStackParamList = {
   People: undefined;
   PersonItems: { personId: string };
   SharedItems: undefined;
+  AllItems: undefined;
   ScanReceipt: undefined;
   // Plain JSON — safe to carry through navigation state.
   AssignItems: { items: ScannedItem[] };

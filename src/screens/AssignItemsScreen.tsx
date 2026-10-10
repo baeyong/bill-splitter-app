@@ -1,6 +1,7 @@
-import React, { useLayoutEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,44 +11,104 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ReceiptPhoto from '../components/ReceiptPhoto';
+import ReceiptView from '../components/ReceiptView';
 import { useBill } from '../context/BillContext';
-import { ScannedAssignment } from '../types/scan';
+import { ReceiptLine } from '../types/bill';
+import { AssignDraft, AssignProgress, ScannedAssignment } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
+import { rowsFromProgress } from '../utils/receiptRows';
 
-/** Price is kept as text while the user is editing so partial input works. */
-type Draft = { id: string; name: string; priceText: string; quantity: number };
+type Draft = AssignDraft;
+
+// Drops picks for anyone removed from the bill since the progress was saved.
+const forPeople = (saved: AssignProgress, validIds: Set<string>): AssignProgress => ({
+  ...saved,
+  assignments: Object.fromEntries(
+    Object.entries(saved.assignments).map(([line, ids]) => [
+      line,
+      ids.filter((id) => validIds.has(id)),
+    ]),
+  ),
+  unitCounts: Object.fromEntries(
+    Object.entries(saved.unitCounts).map(([line, counts]) => [
+      line,
+      Object.fromEntries(Object.entries(counts).filter(([id]) => validIds.has(id))),
+    ]),
+  ),
+});
 
 // Matches the quantity stepper's cap on the manual item screens.
 const MAX_QTY = 20;
 
 export default function AssignItemsScreen({ navigation, route }: ScreenProps<'AssignItems'>) {
-  const { bill, applyScannedItems } = useBill();
+  const { bill, applyScannedItems, pendingScan, setPendingScan } = useBill();
   const insets = useSafeAreaInsets();
 
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
-    route.params.items.map((i) => ({
-      id: i.id,
-      name: i.name,
-      priceText: i.price.toFixed(2),
-      quantity: i.quantity,
-    })),
-  );
-  const [index, setIndex] = useState(0);
-  // Who shares a line: single-unit lines, and multi-unit lines the user chose
-  // to share evenly.
-  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
-  // How many units of a multi-unit line each person had ("Alice 2, Bob 1").
-  const [unitCounts, setUnitCounts] = useState<Record<string, Record<string, number>>>({});
-  const [shareEvenly, setShareEvenly] = useState<Record<string, boolean>>({});
-  const [skipped, setSkipped] = useState<Record<string, boolean>>({});
+  // Resume where the user left off if they backed out mid-way (say, to add a
+  // forgotten person); otherwise start fresh from the scan.
+  const [initial] = useState<AssignProgress>(() => {
+    const saved = pendingScan?.progress;
+    if (saved) return forPeople(saved, new Set(bill.people.map((p) => p.id)));
+    return {
+      drafts: route.params.items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        priceText: i.price.toFixed(2),
+        quantity: i.quantity,
+      })),
+      index: 0,
+      assignments: {},
+      unitCounts: {},
+      shareEvenly: {},
+      skipped: {},
+    };
+  });
+  const [drafts, setDrafts] = useState<Draft[]>(initial.drafts);
+  const [index, setIndex] = useState(initial.index);
+  const [assignments, setAssignments] = useState(initial.assignments);
+  const [unitCounts, setUnitCounts] = useState(initial.unitCounts);
+  const [shareEvenly, setShareEvenly] = useState(initial.shareEvenly);
+  const [skipped, setSkipped] = useState(initial.skipped);
+
+  // Mirror every change onto the pending scan. Once the scan is committed (or
+  // replaced) there's nothing to mirror onto, so this becomes a no-op.
+  useEffect(() => {
+    const progress: AssignProgress = {
+      drafts,
+      index,
+      assignments,
+      unitCounts,
+      shareEvenly,
+      skipped,
+    };
+    setPendingScan((prev) => (prev?.result ? { ...prev, progress } : prev));
+  }, [drafts, index, assignments, unitCounts, shareEvenly, skipped, setPendingScan]);
 
   const total = drafts.length;
   const current = drafts[index];
   const isLast = index === total - 1;
+  const [seeAllOpen, setSeeAllOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: `Item ${Math.min(index + 1, total)} of ${total}` });
+    navigation.setOptions({
+      title: `Item ${Math.min(index + 1, total)} of ${total}`,
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => setSeeAllOpen(true)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.headerLink}>See all</Text>
+        </TouchableOpacity>
+      ),
+    });
   }, [navigation, index, total]);
+
+  const seeAllRows = useMemo(
+    () => rowsFromProgress({ drafts, index, assignments, unitCounts, shareEvenly, skipped }),
+    [drafts, index, assignments, unitCounts, shareEvenly, skipped],
+  );
 
   // Running per-person counts, so the chips show progress as you go.
   const countsByPerson = useMemo(() => {
@@ -142,24 +203,28 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
     // Each unit becomes its own entry — the same shape the manual quantity
     // stepper produces.
     const entries: ScannedAssignment[] = [];
+    // Every line, skipped ones too, so All items can show the whole receipt.
+    const lines: ReceiptLine[] = [];
     for (const draft of drafts) {
-      if (finalSkipped[draft.id]) continue;
       const price = parseFloat(draft.priceText);
       if (isNaN(price) || price < 0) continue;
       const name = draft.name.trim();
+      const lineId = draft.id;
+      lines.push({ id: lineId, name, price, quantity: draft.quantity });
+      if (finalSkipped[draft.id]) continue;
 
       if (draft.quantity > 1 && !shareEvenly[draft.id]) {
         for (const [personId, n] of Object.entries(unitCounts[draft.id] ?? {})) {
-          for (let i = 0; i < n; i++) entries.push({ name, price, personIds: [personId] });
+          for (let i = 0; i < n; i++) entries.push({ name, price, personIds: [personId], lineId });
         }
       } else {
         const personIds = assignments[draft.id] ?? [];
         if (personIds.length === 0) continue;
-        for (let i = 0; i < draft.quantity; i++) entries.push({ name, price, personIds });
+        for (let i = 0; i < draft.quantity; i++) entries.push({ name, price, personIds, lineId });
       }
     }
 
-    applyScannedItems(entries);
+    applyScannedItems(entries, lines);
 
     // Land on Summary with a sensible back path rather than walking back
     // through the scan flow.
@@ -347,12 +412,93 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
           <Text style={styles.nextBtnText}>{isLast ? 'Finish' : 'Next'}</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={seeAllOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSeeAllOpen(false)}
+      >
+        <View style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>Whole receipt</Text>
+            <TouchableOpacity
+              onPress={() => setSeeAllOpen(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.headerLink}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.panelScroll}>
+            <ReceiptView
+              title={pendingScan?.result?.restaurantName}
+              rows={seeAllRows}
+              people={bill.people}
+              highlightKey={current.id}
+              onPressRow={(row) => {
+                const i = drafts.findIndex((d) => d.id === row.key);
+                if (i >= 0) setIndex(i);
+                setSeeAllOpen(false);
+              }}
+              totals={[
+                {
+                  label: 'Assigned so far',
+                  value: seeAllRows.reduce(
+                    (sum, r) => sum + r.price * (r.quantity - r.unassigned),
+                    0,
+                  ),
+                  bold: true,
+                  printed:
+                    pendingScan?.result?.subtotal !== undefined
+                      ? { label: 'Receipt subtotal', value: pendingScan.result.subtotal }
+                      : undefined,
+                },
+              ]}
+            />
+            <Text style={styles.panelHint}>Tap a line to jump to it.</Text>
+            {pendingScan?.imageUri && (
+              <TouchableOpacity style={styles.photoBtn} onPress={() => setPhotoOpen(true)}>
+                <Text style={styles.link}>View receipt photo</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+          {pendingScan?.imageUri && (
+            <ReceiptPhoto
+              uri={pendingScan.imageUri}
+              visible={photoOpen}
+              onClose={() => setPhotoOpen(false)}
+            />
+          )}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
+  headerLink: { color: '#3AB795', fontWeight: '600', fontSize: 16 },
+  panel: { flex: 1, backgroundColor: '#F4F6F5' },
+  panelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  panelTitle: { fontSize: 17, fontWeight: '700' },
+  panelScroll: { padding: 16, gap: 12 },
+  panelHint: { fontSize: 12, color: '#999', fontStyle: 'italic', textAlign: 'center' },
+  photoBtn: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3AB795',
+    backgroundColor: '#fff',
+  },
   empty: { color: '#999', textAlign: 'center', marginTop: 40, paddingHorizontal: 20 },
   progressTrack: { height: 3, backgroundColor: '#eee' },
   progressFill: { height: 3, backgroundColor: '#3AB795' },

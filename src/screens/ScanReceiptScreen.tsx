@@ -18,8 +18,7 @@ import { ScreenProps } from '../types/navigation';
 import { ReceiptScanError, parseReceipt } from '../utils/parseReceipt';
 
 export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanReceipt'>) {
-  const { bill, setTaxFromAmount, setTipMode, setTipValue, pendingScan, setPendingScan } =
-    useBill();
+  const { setTaxFromAmount, setTipMode, setTipValue, pendingScan, setPendingScan } = useBill();
   const insets = useSafeAreaInsets();
 
   // Lives on BillContext, not here, so backing out to add a person keeps the
@@ -27,6 +26,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const imageUri = pendingScan?.imageUri ?? null;
   const scanning = pendingScan?.scanning ?? false;
   const result = pendingScan?.result ?? null;
+  const progress = pendingScan?.progress;
   const [error, setError] = useState<string | null>(null);
 
   const [useTax, setUseTax] = useState(true);
@@ -114,6 +114,17 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
     navigation.navigate('AssignItems', { items: result.items });
   };
 
+  const confirmStartOver = () => {
+    Alert.alert('Start assigning over?', "Who-had-what picks for this receipt will be cleared.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Start over',
+        style: 'destructive',
+        onPress: () => setPendingScan((prev) => (prev ? { ...prev, progress: undefined } : prev)),
+      },
+    ]);
+  };
+
   return (
     <View style={styles.flex}>
       <ScrollView
@@ -187,7 +198,15 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
               ))}
             </View>
 
-            {(canApplyTax || canApplyTip) && <View style={styles.divider} />}
+            {(canApplyTax || canApplyTip) && (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.taxTipNote}>
+                  Tax and tip from this receipt apply to this bill only. Every new bill starts
+                  again from your saved tax rate and an 18% tip.
+                </Text>
+              </>
+            )}
 
             {canApplyTax && result.tax !== undefined && (
               <View style={styles.toggleRow}>
@@ -196,8 +215,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
                     Use receipt tax · ${result.tax.toFixed(2)}
                   </Text>
                   <Text style={styles.toggleHint}>
-                    {((result.tax / taxBase) * 100).toFixed(2)}% — replaces your saved{' '}
-                    {bill.taxRatePercent}% rate
+                    {((result.tax / taxBase) * 100).toFixed(2)}% · this bill only
                   </Text>
                 </View>
                 <Switch
@@ -228,7 +246,23 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
-        {result ? (
+        {result && progress ? (
+          <>
+            <TouchableOpacity style={styles.primaryBtn} onPress={startAssigning}>
+              <Text style={styles.primaryBtnText}>
+                Continue assigning (item {Math.min(progress.index + 1, progress.drafts.length)} of{' '}
+                {progress.drafts.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.startOverBtn}
+              onPress={confirmStartOver}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.startOverText}>Start over</Text>
+            </TouchableOpacity>
+          </>
+        ) : result ? (
           <TouchableOpacity style={styles.primaryBtn} onPress={startAssigning}>
             <Text style={styles.primaryBtnText}>
               Assign {result.items.length} item{result.items.length === 1 ? '' : 's'}
@@ -300,6 +334,7 @@ const styles = StyleSheet.create({
   itemPreviewName: { flex: 1, fontSize: 14, color: '#333' },
   itemPreviewPrice: { fontSize: 14, fontWeight: '600', color: '#333' },
   divider: { height: 1, backgroundColor: '#C9E7DA', marginVertical: 14 },
+  taxTipNote: { fontSize: 13, color: '#556', lineHeight: 18, marginBottom: 12 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
   toggleLabel: { fontSize: 15, fontWeight: '600', color: '#222' },
   toggleHint: { fontSize: 12, color: '#678', marginTop: 2 },
@@ -316,5 +351,7 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   btnDisabled: { opacity: 0.4 },
+  startOverBtn: { alignItems: 'center', paddingTop: 12 },
+  startOverText: { color: '#888', fontSize: 14, fontWeight: '600' },
   scanningRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

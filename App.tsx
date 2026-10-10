@@ -5,6 +5,7 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BillProvider } from './src/context/BillContext';
 import { ReceiptsProvider } from './src/context/ReceiptsContext';
+import AllItemsScreen from './src/screens/AllItemsScreen';
 import AssignItemsScreen from './src/screens/AssignItemsScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import PeopleScreen from './src/screens/PeopleScreen';
@@ -46,6 +47,11 @@ export default function App() {
                 name="SharedItems"
                 component={SharedItemsScreen}
                 options={{ title: 'Shared Items' }}
+              />
+              <Stack.Screen
+                name="AllItems"
+                component={AllItemsScreen}
+                options={{ title: 'All items' }}
               />
               <Stack.Screen
                 name="ScanReceipt"

@@ -202,6 +202,12 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
         <Text style={styles.settingsText}>
           {bill.stateCode} · Tax {bill.taxRatePercent}%
         </Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('AllItems')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.reviewLink}>Review all items ›</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tipBlock}>
@@ -453,7 +459,13 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 16, paddingBottom: 40 },
-  settingsRow: { marginBottom: 8 },
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reviewLink: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
   settingsText: { fontSize: 13, color: '#666' },
   tipBlock: {
     flexDirection: 'row',
