@@ -1,6 +1,9 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    // TS 6 no longer picks up @types packages automatically; jest's globals
+    // (describe/it/expect) are needed by the *.test.ts files.
+    "types": ["jest"]
   }
 }
