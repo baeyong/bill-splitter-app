@@ -83,15 +83,52 @@ describe('calculateBreakdown', () => {
     expect(sum).toBe(r.grandTotal);
   });
 
-  // Known issue, not yet fixed: three people sharing $10 each get $3.33, so the
-  // per-person totals add up to $9.99 while the subtotal says $10.00.
-  it.failing('grand total matches subtotal + tax + tip when a split leaves a stray cent', () => {
+  it('gives the stray cent to one person so the split adds up exactly', () => {
     const r = calculateBreakdown(
       bill({
         people: [alice([]), bob([]), { id: 'c', name: 'Cara', items: [] }],
         sharedItems: [{ id: 's', name: 'Pizza', totalPrice: 10, personIds: ['a', 'b', 'c'] }],
       }),
     );
-    expect(r.grandTotal).toBe(r.grandSubtotal + r.grandTax + r.grandTip);
+    expect(r.rows.map((x) => x.total)).toEqual([3.34, 3.33, 3.33]);
+    expect(r.grandTotal).toBe(10);
+  });
+
+  it('every person’s line adds up, and the people add up to the grand totals', () => {
+    const people = [alice([12.99, 3.5]), bob([7.25]), { id: 'c', name: 'Cara', items: [] }];
+    const sharedItems = [
+      { id: 's', name: 'Fries', totalPrice: 10, personIds: ['a', 'b', 'c'] },
+      { id: 't', name: 'Wine', totalPrice: 41, personIds: ['a', 'b', 'c'] },
+    ];
+    for (const tip of [
+      { tipMode: 'percent' as const, tipValue: 18 },
+      { tipMode: 'amount' as const, tipValue: 13.37 },
+    ]) {
+      const r = calculateBreakdown(bill({ taxRatePercent: 8.875, people, sharedItems, ...tip }));
+      const cents = (n: number) => Math.round(n * 100);
+      for (const row of r.rows) {
+        expect(cents(row.ownItemsTotal) + cents(row.sharedShare)).toBe(cents(row.subtotal));
+        expect(cents(row.subtotal) + cents(row.tax) + cents(row.tip)).toBe(cents(row.total));
+      }
+      const sum = (k: 'subtotal' | 'tax' | 'tip' | 'total') =>
+        r.rows.reduce((acc, row) => acc + cents(row[k]), 0);
+      expect(sum('subtotal')).toBe(cents(r.grandSubtotal));
+      expect(sum('tax')).toBe(cents(r.grandTax));
+      expect(sum('tip')).toBe(cents(r.grandTip));
+      expect(sum('total')).toBe(cents(r.grandTotal));
+      expect(cents(r.grandTotal)).toBe(cents(r.grandSubtotal + r.grandTax + r.grandTip));
+    }
+  });
+
+  it('a $ tip is handed out to the cent', () => {
+    const r = calculateBreakdown(
+      bill({
+        tipMode: 'amount',
+        tipValue: 10,
+        people: [alice([1]), bob([1]), { id: 'c', name: 'Cara', items: [{ id: 'c0', name: 'x', price: 1 }] }],
+      }),
+    );
+    expect(r.rows.map((x) => x.tip)).toEqual([3.34, 3.33, 3.33]);
+    expect(r.grandTip).toBe(10);
   });
 });

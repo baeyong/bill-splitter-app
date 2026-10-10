@@ -70,7 +70,7 @@ The "Your spend this month" total in [ReceiptsScreen](src/screens/ReceiptsScreen
 
 ### Tip math has two modes
 
-[src/utils/calculate.ts](src/utils/calculate.ts) — when `bill.tipMode === 'percent'`, each person's tip is `subtotal * (tipValue / 100)`. When `'amount'`, the dollar tip is split *proportionally to each person's share of the global subtotal*, not evenly. Tax is always `subtotal * taxRate` per person. Don't change this without thinking about both modes.
+[src/utils/calculate.ts](src/utils/calculate.ts) — when `bill.tipMode === 'percent'`, each person's tip is `subtotal * (tipValue / 100)`. When `'amount'`, the dollar tip is split *proportionally to each person's share of the global subtotal*, not evenly. Tax is always `subtotal * taxRate` per person. Don't change this without thinking about both modes. Each column (shared share, tax, tip) is rounded with `roundPreservingSum`, so a person's line adds up and the people add up to the grand total — a $10 dish shared three ways is $3.34 / $3.33 / $3.33, with ties going to whoever is listed first.
 
 ### Shared items are split evenly among selected `personIds`
 
