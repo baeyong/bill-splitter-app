@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { ScanErrorKind, ScanResult, ScannedItem } from '../types/scan';
+import { fitWidth } from './imageFit';
 
 // Haiku is ~30–40x cheaper per scan than Opus, and reading printed text is the
 // high-volume extraction work it's built for. The user still checks every line
@@ -12,9 +13,6 @@ const MODEL = 'claude-haiku-5-5';
 // reaching for a bigger model if receipts start misreading.
 const EFFORT = 'low';
 
-// Receipts are tall and narrow; 1400px on the long edge keeps small print
-// legible while cutting a 12MP camera shot down to a few hundred KB.
-const MAX_WIDTH = 1400;
 const JPEG_QUALITY = 0.7;
 
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -78,11 +76,18 @@ Rules:
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** Shrink + JPEG-compress so the upload is fast and well under the 5MB image cap. */
+/**
+ * Shrink to the largest size Claude reads at full detail (see imageFit.ts) and
+ * JPEG-compress. A 12MP photo comes out ~1680×2240 and a few hundred KB.
+ * Never enlarges; resizing by width alone keeps the aspect ratio.
+ */
 const toBase64Jpeg = async (uri: string): Promise<string> => {
-  const rendered = await ImageManipulator.manipulate(uri)
-    .resize({ width: MAX_WIDTH })
-    .renderAsync();
+  const original = await ImageManipulator.manipulate(uri).renderAsync();
+  const width = fitWidth(original.width, original.height);
+  const rendered =
+    width < original.width
+      ? await ImageManipulator.manipulate(original).resize({ width }).renderAsync()
+      : original;
   const saved = await rendered.saveAsync({
     base64: true,
     compress: JPEG_QUALITY,
