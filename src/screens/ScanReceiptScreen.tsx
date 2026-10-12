@@ -18,7 +18,7 @@ import { ScreenProps } from '../types/navigation';
 import { ReceiptScanError, parseReceipt } from '../utils/parseReceipt';
 
 export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanReceipt'>) {
-  const { setTaxFromAmount, setTipMode, setTipValue, pendingScan, setPendingScan } = useBill();
+  const { applyReceiptTax, setTipMode, setTipValue, pendingScan, setPendingScan } = useBill();
   const insets = useSafeAreaInsets();
 
   // Lives on BillContext, not here, so backing out to add a person keeps the
@@ -32,10 +32,8 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const [useTax, setUseTax] = useState(true);
   const [useTip, setUseTip] = useState(true);
 
-  // Tax only makes sense as a rate, which needs a subtotal to divide by.
   const itemsTotal = result?.items.reduce((sum, i) => sum + i.price * i.quantity, 0) ?? 0;
-  const taxBase = result?.subtotal ?? itemsTotal;
-  const canApplyTax = result?.tax !== undefined && taxBase > 0;
+  const canApplyTax = result?.tax !== undefined;
   const canApplyTip = result?.tip !== undefined && result.tip > 0;
 
   const choosePhoto = (uri: string) => {
@@ -105,7 +103,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const startAssigning = () => {
     if (!result) return;
     if (useTax && canApplyTax && result.tax !== undefined) {
-      setTaxFromAmount(result.tax, taxBase);
+      applyReceiptTax(result.tax);
     }
     if (useTip && canApplyTip && result.tip !== undefined) {
       setTipMode('amount');
@@ -215,7 +213,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
                     Use receipt tax · ${result.tax.toFixed(2)}
                   </Text>
                   <Text style={styles.toggleHint}>
-                    {((result.tax / taxBase) * 100).toFixed(2)}% · this bill only
+                    Exactly as printed, split by share · this bill only
                   </Text>
                 </View>
                 <Switch

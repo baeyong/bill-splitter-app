@@ -1,5 +1,5 @@
 import { Bill } from '../../types/bill';
-import { calculateBreakdown } from '../calculate';
+import { calculateBreakdown, describeTax } from '../calculate';
 
 const bill = (patch: Partial<Bill>): Bill => ({
   stateCode: 'NY',
@@ -120,6 +120,19 @@ describe('calculateBreakdown', () => {
     }
   });
 
+  it('a $ tax is split by share and adds up to exactly the receipt’s tax', () => {
+    const r = calculateBreakdown(
+      bill({ taxRatePercent: 50, taxMode: 'amount', taxAmount: 3, people: [alice([30]), bob([10])] }),
+    );
+    expect(r.rows.map((x) => x.tax)).toEqual([2.25, 0.75]);
+    expect(r.grandTax).toBe(3);
+  });
+
+  it('a $ tax with nothing ordered is $0, not NaN', () => {
+    const r = calculateBreakdown(bill({ taxMode: 'amount', taxAmount: 3, people: [alice([])] }));
+    expect(r.rows[0].tax).toBe(0);
+  });
+
   it('a $ tip is handed out to the cent', () => {
     const r = calculateBreakdown(
       bill({
@@ -130,5 +143,12 @@ describe('calculateBreakdown', () => {
     );
     expect(r.rows.map((x) => x.tip)).toEqual([3.34, 3.33, 3.33]);
     expect(r.grandTip).toBe(10);
+  });
+});
+
+describe('describeTax', () => {
+  it('shows a rate or a fixed amount', () => {
+    expect(describeTax(bill({ taxRatePercent: 8.875 }))).toBe('8.875%');
+    expect(describeTax(bill({ taxMode: 'amount', taxAmount: 3 }))).toBe('$3.00');
   });
 });

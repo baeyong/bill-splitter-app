@@ -68,9 +68,9 @@ When bumping a storage schema, change the `:vN` suffix rather than mutating in p
 
 The "Your spend this month" total in [ReceiptsScreen](src/screens/ReceiptsScreen.tsx) and the "Your share" line in [ReceiptDetailScreen](src/screens/ReceiptDetailScreen.tsx) both come from `receipt.breakdown.find(b => b.personId === receipt.ownerPersonId).total` — they intentionally show $0 / "you weren't tagged" when no owner was set on that receipt rather than guessing.
 
-### Tip math has two modes
+### Tip and tax each have two modes
 
-[src/utils/calculate.ts](src/utils/calculate.ts) — when `bill.tipMode === 'percent'`, each person's tip is `subtotal * (tipValue / 100)`. When `'amount'`, the dollar tip is split *proportionally to each person's share of the global subtotal*, not evenly. Tax is always `subtotal * taxRate` per person. Don't change this without thinking about both modes. Each column (shared share, tax, tip) is rounded with `roundPreservingSum`, so a person's line adds up and the people add up to the grand total — a $10 dish shared three ways is $3.34 / $3.33 / $3.33, with ties going to whoever is listed first.
+[src/utils/calculate.ts](src/utils/calculate.ts) — when `bill.tipMode === 'percent'`, each person's tip is `subtotal * (tipValue / 100)`. When `'amount'`, the dollar tip is split *proportionally to each person's share of the global subtotal*, not evenly. Tax works the same way: `taxMode` `'percent'` (the default, and what any bill without the field means) is `subtotal * taxRate`; `'amount'` splits `taxAmount` dollars by share, so a receipt's printed tax is matched to the cent. Don't change this without thinking about all four combinations. Each column (shared share, tax, tip) is rounded with `roundPreservingSum`, so a person's line adds up and the people add up to the grand total — a $10 dish shared three ways is $3.34 / $3.33 / $3.33, with ties going to whoever is listed first.
 
 ### Shared items are split evenly among selected `personIds`
 
@@ -80,11 +80,12 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 [ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx) → [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) ends by creating ordinary `Item`s and `SharedItem`s, so `calculate` and the per-person Summary work exactly as for a hand-entered bill — keep it that way. The one addition is for *display*: each unit carries an optional `lineId`, and `bill.scan` keeps the receipt's lines (skipped ones too) and printed totals, so [AllItemsScreen](src/screens/AllItemsScreen.tsx) can show the bill laid out like the paper receipt. Both are optional and ignored by `calculate`; older bills without them fall back to grouping items by name + price.
 
-[parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and sends it to Claude (`claude-opus-5-5`) through `@anthropic-ai/sdk`, using structured outputs (`output_config.format`) so the reply is guaranteed to match `RECEIPT_SCHEMA`. Things to know about it:
+[parseReceipt.ts](src/utils/parseReceipt.ts) downsizes the photo to 1400px JPEG and sends it to Claude (`claude-haiku-5-5`) through `@anthropic-ai/sdk`, using structured outputs (`output_config.format`) so the reply is guaranteed to match `RECEIPT_SCHEMA`. Things to know about it:
 
 - **A receipt line stays one `ScannedItem` with a `quantity`.** `price` is the *unit* price. AssignItems shows "3 × Soda" as one card and lets the user hand units out per person ("Alice 2, Bob 1"), or switch to sharing the whole line evenly. Only at commit is each unit expanded into its own entry — the same shape the manual quantity stepper produces — so nothing downstream knows about quantity.
-- **Effort is `low` on purpose.** Reading printed text is extraction, not reasoning, and the user is waiting on a spinner. Raise `EFFORT` before reaching for a different model if receipts start misreading.
-- **Refusal fallback is on** (`fallbacks: 'default'` + the `server-side-fallback-2026-07-01` beta), so a safety-classifier false positive is retried on another model inside the same call instead of failing the scan. That's why it calls `client.beta.messages.create`.
+- **Haiku on purpose, for cost.** It's ~0.1¢ a scan versus ~2–4¢ on Opus; the user reviews every line on AssignItems and All items checks the total against the receipt, which is the safety net for misreads. Moving up to Sonnet/Opus was judged too expensive — don't switch models without asking.
+- **Effort is `low` on purpose.** Reading printed text is extraction, not reasoning, and the user is waiting on a spinner. Haiku's default is `medium`; raise `EFFORT` before reaching for a different model if receipts start misreading.
+- **No refusal fallback.** Haiku 5.5 has no server-side fallback (`fallbacks` would be ignored or 400), so a safety-classifier decline surfaces as a retryable error. It uses the plain `client.messages.create`.
 - **Every object in `RECEIPT_SCHEMA` needs `additionalProperties: false`** — structured outputs rejects the schema otherwise.
 - **[metro.config.js](metro.config.js) forces the SDK's CommonJS build.** The ESM build has a circular import that crashes dev builds at startup (`Cannot read property 'BetaToolRunner' of undefined`) when React Refresh reads its exports mid-cycle. Don't remove the override without re-testing in Expo Go.
 
@@ -96,7 +97,9 @@ The photo and result live on BillContext as `pendingScan` (memory only), not in 
 
 [receiptRows.ts](src/utils/receiptRows.ts) folds units back into receipt lines — from the bill (`rowsFromBill`) or from in-progress assignment (`rowsFromProgress`) — and [ReceiptView](src/components/ReceiptView.tsx) renders them, for both All items and AssignItems' "See all" panel. Edits go through `changeLine`, which swaps every unit of a line (and corrects `bill.scan`'s copy of it) in one update. The photo outlives `pendingScan` as `scanPhotoUri`, memory only — it's never saved with a receipt.
 
-`setTaxFromAmount` back-computes `taxRatePercent` from the receipt's printed tax so it fits the existing percent-based model. It applies to **this bill only** and never touches the saved default — a rate derived from one receipt is often slightly off (untaxed items, discounts, a different city), and it used to silently become the rate for every later bill. Settings edits `savedTax` (the default), not the bill on screen, and flags a rate that differs from the state's with a Reset link.
+`applyReceiptTax` puts the receipt's printed tax on the bill as an exact dollar amount (`taxMode: 'amount'`). It used to back-compute a rate from tax ÷ subtotal, which went wrong whenever the printed subtotal included comps and missed by cents from rounding. It applies to **this bill only**. Summary edits the bill's tax (% or $) through `setBillTax`, also bill-only; Settings edits `savedTax` (the default) and flags a rate that differs from the state's with a Reset link. Only Settings ever writes the saved default.
+
+The prompt defines "subtotal" as after comps and item discounts (receipts often print it above the comp lines), and folds gratuity / service charge into "tip", so the printed figures line up with what the bill can represent.
 
 **This is the only feature that sends anything off the device.** The README says so explicitly; if you change what's uploaded, change that line too.
 

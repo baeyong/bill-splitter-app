@@ -10,6 +10,7 @@ import {
   RecentItem,
   SavedReceipt,
   SharedItem,
+  TaxMode,
   TipMode,
 } from '../types/bill';
 import { PendingScan, ScannedAssignment } from '../types/scan';
@@ -109,7 +110,10 @@ type BillContextValue = {
   /** The scanned photo, kept for checking against while the bill is open. */
   scanPhotoUri: string | null;
   setPendingScan: React.Dispatch<React.SetStateAction<PendingScan | null>>;
-  setTaxFromAmount: (taxAmount: number, subtotal: number) => void;
+  /** Use a receipt's printed tax, exactly, for this bill. */
+  applyReceiptTax: (taxAmount: number) => void;
+  /** Change this bill's tax only — the saved default is untouched. */
+  setBillTax: (patch: { taxMode?: TaxMode; taxRatePercent?: number; taxAmount?: number }) => void;
   resetBill: () => void;
   editingReceiptId: string | null;
   loadFromReceipt: (receipt: SavedReceipt) => void;
@@ -299,15 +303,14 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pendingScan,
       scanPhotoUri,
       setPendingScan,
-      // Back-computes a rate from a receipt's printed tax so it fits the
-      // existing percent-based model. This bill only, like the receipt tip — a
-      // rate derived from one receipt is often slightly off (untaxed items,
-      // discounts) and shouldn't become the default for every bill after.
-      setTaxFromAmount: (taxAmount, subtotal) => {
-        if (!(subtotal > 0) || !(taxAmount >= 0)) return;
-        const rate = Math.round((taxAmount / subtotal) * 10000) / 100;
-        setBill((prev) => ({ ...prev, taxRatePercent: rate }));
+      // The printed tax, exactly — a rate back-computed from it came out wrong
+      // whenever the receipt's subtotal included comps or discounts, and
+      // rounding the rate could miss by a few cents. This bill only.
+      applyReceiptTax: (taxAmount) => {
+        if (!(taxAmount >= 0)) return;
+        setBill((prev) => ({ ...prev, taxMode: 'amount', taxAmount }));
       },
+      setBillTax: (patch) => setBill((prev) => ({ ...prev, ...patch })),
       resetBill: () => {
         setBill({
           ...prefs,
@@ -322,11 +325,10 @@ export const BillProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       editingReceiptId,
       loadFromReceipt: (receipt) => {
+        // Spread first so every field (and its order — Summary's unsaved-changes
+        // check compares JSON) carries over, then deep-copy the nested parts.
         setBill({
-          stateCode: receipt.bill.stateCode,
-          taxRatePercent: receipt.bill.taxRatePercent,
-          tipMode: receipt.bill.tipMode,
-          tipValue: receipt.bill.tipValue,
+          ...receipt.bill,
           people: receipt.bill.people.map((p) => ({
             ...p,
             items: p.items.map((i) => ({ ...i })),

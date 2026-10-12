@@ -54,10 +54,18 @@ export type ScannedReceipt = {
 };
 
 export type TipMode = 'percent' | 'amount';
+export type TaxMode = 'percent' | 'amount';
 
 export type Bill = {
   stateCode: string;
   taxRatePercent: number;
+  /**
+   * 'amount' = use `taxAmount` dollars exactly, split by share like a $ tip —
+   * how a receipt's printed tax is applied, so the bill matches it to the cent.
+   * Optional: bills saved before it existed are percent.
+   */
+  taxMode?: TaxMode;
+  taxAmount?: number;
   tipMode: TipMode;
   tipValue: number;
   people: Person[];

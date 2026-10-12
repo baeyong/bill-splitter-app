@@ -38,21 +38,32 @@ describe('tax defaults', () => {
     expect(result.current.bill).toMatchObject({ tipMode: 'percent', tipValue: 18 });
   });
 
-  it('receipt tax applies to this bill only, and the next bill is back on the default', async () => {
+  it('receipt tax is used as the exact amount, for this bill only', async () => {
     const { result } = await setup();
-    await act(() => result.current.setTaxFromAmount(3, 37.59)); // 7.98%
-    expect(result.current.bill.taxRatePercent).toBe(7.98);
+    await act(() => result.current.applyReceiptTax(3));
+    expect(result.current.bill).toMatchObject({ taxMode: 'amount', taxAmount: 3 });
     expect(result.current.savedTax.taxRatePercent).toBe(8.875);
     expect((await storedPrefs()).taxRatePercent).toBe(8.875);
 
     await act(() => result.current.resetBill());
+    expect(result.current.bill.taxMode).toBeUndefined();
     expect(result.current.bill.taxRatePercent).toBe(8.875);
   });
 
-  it('ignores receipt tax it cannot turn into a rate', async () => {
+  it('ignores a receipt tax that is not a real amount', async () => {
     const { result } = await setup();
-    await act(() => result.current.setTaxFromAmount(3, 0));
-    expect(result.current.bill.taxRatePercent).toBe(8.875);
+    await act(() => result.current.applyReceiptTax(NaN));
+    expect(result.current.bill.taxMode).toBeUndefined();
+  });
+
+  it('tax edited on Summary changes this bill, never the saved default', async () => {
+    const { result } = await setup();
+    await act(() => result.current.setBillTax({ taxRatePercent: 5 }));
+    expect(result.current.bill.taxRatePercent).toBe(5);
+    await act(() => result.current.setBillTax({ taxMode: 'amount', taxAmount: 4.2 }));
+    expect(result.current.bill).toMatchObject({ taxMode: 'amount', taxAmount: 4.2 });
+    expect(result.current.savedTax.taxRatePercent).toBe(8.875);
+    expect((await storedPrefs()).taxRatePercent).toBe(8.875);
   });
 
   it('a rate set in Settings becomes the saved default', async () => {
@@ -79,6 +90,8 @@ describe('tax defaults', () => {
         taxRatePercent: 7.25,
         tipMode: 'amount',
         tipValue: 10,
+        taxMode: 'amount',
+        taxAmount: 0.4,
         people: [{ id: 'p', name: 'Pat', items: [{ id: 'i', name: 'Soup', price: 5 }] }],
         sharedItems: [],
       },
@@ -89,7 +102,15 @@ describe('tax defaults', () => {
       grandTotal: 15,
     };
     await act(() => result.current.loadFromReceipt(receipt));
-    expect(result.current.bill).toMatchObject({ stateCode: 'CA', taxRatePercent: 7.25 });
+    expect(result.current.bill).toMatchObject({
+      stateCode: 'CA',
+      taxRatePercent: 7.25,
+      taxMode: 'amount',
+      taxAmount: 0.4,
+    });
+    // Same fields in the same order, so Summary's unsaved-changes check
+    // (a JSON comparison) starts out clean.
+    expect(JSON.stringify(result.current.bill)).toBe(JSON.stringify(receipt.bill));
     expect(result.current.editingReceiptId).toBe('r1');
 
     await act(() => result.current.setTaxRatePercent(9));

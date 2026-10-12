@@ -16,6 +16,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
+import { getStateByCode } from '../data/stateTaxRates';
 import { calculateBreakdown } from '../utils/calculate';
 import { parseAmount } from '../utils/money';
 
@@ -26,7 +27,8 @@ const formatPickerLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
-  const { bill, resetBill, editingReceiptId, setTipMode, setTipValue } = useBill();
+  const { bill, savedTax, resetBill, editingReceiptId, setTipMode, setTipValue, setBillTax } =
+    useBill();
   const { saveReceipt, updateReceipt, receipts, ownerName, setOwnerName } = useReceipts();
   const [tipInput, setTipInput] = useState(String(bill.tipValue));
 
@@ -43,12 +45,42 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     const n = s.trim() === '' ? 0 : parseAmount(s);
     if (!isNaN(n)) setTipValue(n);
   };
+  // Tax works like tip: a % or an exact $ amount, for this bill only.
+  const taxMode = bill.taxMode ?? 'percent';
+  const taxValueText = () =>
+    taxMode === 'amount' ? (bill.taxAmount ?? 0).toFixed(2) : String(bill.taxRatePercent);
+  const [taxInput, setTaxInput] = useState(taxValueText);
+  useEffect(() => {
+    setTaxInput(taxValueText());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taxMode, editingReceiptId]);
+
+  const onTaxChange = (s: string) => {
+    setTaxInput(s);
+    const n = s.trim() === '' ? 0 : parseAmount(s);
+    if (isNaN(n)) return;
+    setBillTax(taxMode === 'amount' ? { taxAmount: n } : { taxRatePercent: n });
+  };
+  const savedState = getStateByCode(savedTax.stateCode);
+  const onSavedRate = taxMode === 'percent' && bill.taxRatePercent === savedTax.taxRatePercent;
+  const fromReceipt =
+    taxMode === 'amount' && bill.scan?.tax !== undefined && bill.taxAmount === bill.scan.tax;
+  const revertToSavedRate = () => {
+    setBillTax({ taxMode: 'percent', taxRatePercent: savedTax.taxRatePercent });
+    setTaxInput(String(savedTax.taxRatePercent));
+  };
+
   const isEditing = editingReceiptId !== null;
   const editingReceipt = useMemo(
     () => (editingReceiptId ? receipts.find((r) => r.id === editingReceiptId) ?? null : null),
     [receipts, editingReceiptId],
   );
   const result = useMemo(() => calculateBreakdown(bill), [bill]);
+  // Switching to $ starts from the tax currently charged, not from zero.
+  const switchTaxMode = (mode: 'percent' | 'amount') => {
+    if (mode === taxMode) return;
+    setBillTax(mode === 'amount' ? { taxMode: mode, taxAmount: result.grandTax } : { taxMode: mode });
+  };
   const [expected, setExpected] = useState('');
 
   const expectedNum = parseAmount(expected);
@@ -201,9 +233,6 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
       )}
 
       <View style={styles.settingsRow}>
-        <Text style={styles.settingsText}>
-          {bill.stateCode} · Tax {bill.taxRatePercent}%
-        </Text>
         <TouchableOpacity
           onPress={() => navigation.navigate('AllItems')}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -211,6 +240,42 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
           <Text style={styles.reviewLink}>Review all items ›</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={[styles.tipBlock, styles.taxBlock]}>
+        <Text style={styles.tipLabel}>Tax</Text>
+        <View style={styles.tipModeToggle}>
+          {(['percent', 'amount'] as const).map((mode) => (
+            <TouchableOpacity
+              key={mode}
+              style={[styles.tipModeBtn, taxMode === mode && styles.tipModeBtnOn]}
+              onPress={() => switchTaxMode(mode)}
+            >
+              <Text style={[styles.tipModeBtnText, taxMode === mode && styles.tipModeBtnTextOn]}>
+                {mode === 'percent' ? '%' : '$'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TextInput
+          style={styles.tipInput}
+          keyboardType="decimal-pad"
+          value={taxInput}
+          onChangeText={onTaxChange}
+          placeholder={taxMode === 'percent' ? String(savedTax.taxRatePercent) : '0.00'}
+        />
+      </View>
+      {(fromReceipt || !onSavedRate) && (
+        <View style={styles.taxNoteRow}>
+          <Text style={styles.taxNote}>
+            {fromReceipt ? 'From the receipt · this bill only' : 'This bill only'}
+          </Text>
+          <TouchableOpacity onPress={revertToSavedRate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.reviewLink}>
+              Use {savedState?.code ?? savedTax.stateCode} {savedTax.taxRatePercent}% instead
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.tipBlock}>
         <Text style={styles.tipLabel}>Tip</Text>
@@ -279,7 +344,9 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
               <Text style={styles.breakdownValue}>${row.subtotal.toFixed(2)}</Text>
             </View>
             <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Tax ({bill.taxRatePercent}%)</Text>
+              <Text style={styles.breakdownLabel}>
+                {taxMode === 'percent' ? `Tax (${bill.taxRatePercent}%)` : 'Tax'}
+              </Text>
               <Text style={styles.breakdownValue}>${row.tax.toFixed(2)}</Text>
             </View>
             <View style={styles.breakdownRow}>
@@ -463,12 +530,11 @@ const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 40 },
   settingsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: 8,
   },
   reviewLink: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
-  settingsText: { fontSize: 13, color: '#666' },
   tipBlock: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -479,6 +545,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F4',
     borderRadius: 10,
   },
+  taxBlock: { marginBottom: 6 },
+  taxNoteRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  taxNote: { fontSize: 12, color: '#777' },
   tipLabel: { fontSize: 14, fontWeight: '700', color: '#444' },
   tipModeToggle: {
     flexDirection: 'row',

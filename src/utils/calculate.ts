@@ -24,6 +24,10 @@ export const roundPreservingSum = (values: number[]): number[] => {
   return out.map((c) => c / 100);
 };
 
+/** "8.875%", or "$3.00" when the bill uses a fixed tax amount. */
+export const describeTax = (bill: Bill): string =>
+  bill.taxMode === 'amount' ? `$${(bill.taxAmount ?? 0).toFixed(2)}` : `${bill.taxRatePercent}%`;
+
 export const calculateBreakdown = (bill: Bill): {
   rows: PersonBreakdown[];
   grandSubtotal: number;
@@ -31,7 +35,6 @@ export const calculateBreakdown = (bill: Bill): {
   grandTip: number;
   grandTotal: number;
 } => {
-  const taxRate = bill.taxRatePercent / 100;
 
   const ownTotals = bill.people.map((person) =>
     round2(person.items.reduce((sum, item) => sum + item.price, 0)),
@@ -53,7 +56,14 @@ export const calculateBreakdown = (bill: Bill): {
 
   // Each column is rounded as a whole, so every person's line adds up and the
   // people add up to the grand total — no stray cents anywhere.
-  const taxes = roundPreservingSum(subtotals.map((s) => s * taxRate));
+  const taxes = roundPreservingSum(
+    subtotals.map((s) => {
+      if (bill.taxMode === 'amount') {
+        return grandSubtotal > 0 ? (bill.taxAmount ?? 0) * (s / grandSubtotal) : 0;
+      }
+      return s * (bill.taxRatePercent / 100);
+    }),
+  );
   const tips = roundPreservingSum(
     subtotals.map((s) => {
       if (bill.tipMode === 'percent') return s * (bill.tipValue / 100);

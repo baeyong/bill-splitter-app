@@ -16,7 +16,7 @@ import ReceiptView, { TotalLine } from '../components/ReceiptView';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
 import { ScannedAssignment } from '../types/scan';
-import { calculateBreakdown } from '../utils/calculate';
+import { calculateBreakdown, describeTax } from '../utils/calculate';
 import { MAX_ITEM_NAME, parsePrice, priceError } from '../utils/money';
 import { ReceiptRow, rowsFromBill } from '../utils/receiptRows';
 
@@ -44,7 +44,7 @@ export default function AllItemsScreen({}: ScreenProps<'AllItems'>) {
       printed: scan?.subtotal !== undefined ? { label: 'Receipt', value: scan.subtotal } : undefined,
     },
     {
-      label: `Tax (${bill.taxRatePercent}%)`,
+      label: bill.taxMode === 'amount' ? 'Tax' : `Tax (${describeTax(bill)})`,
       value: result.grandTax,
       printed: scan?.tax !== undefined ? { label: 'Receipt', value: scan.tax } : undefined,
     },

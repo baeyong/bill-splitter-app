@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBill } from '../context/BillContext';
 import { ScreenProps } from '../types/navigation';
+import { describeTax } from '../utils/calculate';
 import { MAX_PERSON_NAME } from '../utils/money';
 
 export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
@@ -44,7 +45,7 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
     >
       <View style={styles.header}>
         <Text style={styles.headerText}>
-          {bill.stateCode} · Tax {bill.taxRatePercent}%
+          {bill.stateCode} · Tax {describeTax(bill)}
         </Text>
         <TouchableOpacity onPress={() => navigation.navigate('Setup')}>
           <Text style={styles.headerEdit}>Edit</Text>

@@ -10,6 +10,7 @@ import {
 import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
+import { describeTax } from '../utils/calculate';
 
 const formatDateTime = (ts: number) =>
   new Date(ts).toLocaleString(undefined, {
@@ -97,7 +98,7 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
       )}
       <Text style={styles.metaTop}>{formatDateTime(receipt.createdAt)}</Text>
       <Text style={styles.settingsText}>
-        {receipt.bill.stateCode} · Tax {receipt.bill.taxRatePercent}% · Tip{' '}
+        {receipt.bill.stateCode} · Tax {describeTax(receipt.bill)} · Tip{' '}
         {receipt.bill.tipMode === 'percent'
           ? `${receipt.bill.tipValue}%`
           : `$${receipt.bill.tipValue.toFixed(2)}`}

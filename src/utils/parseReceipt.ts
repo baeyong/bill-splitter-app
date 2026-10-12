@@ -2,15 +2,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { ScanErrorKind, ScanResult, ScannedItem } from '../types/scan';
 
-const MODEL = 'claude-opus-5-5';
+// Haiku is ~30–40x cheaper per scan than Opus, and reading printed text is the
+// high-volume extraction work it's built for. The user still checks every line
+// on AssignItems, and All items flags a total that doesn't match the receipt.
+const MODEL = 'claude-haiku-5-5';
 
 // Reading printed text off a receipt is extraction, not reasoning — low effort
-// keeps the scan quick. Raise it if dense or crumpled receipts start misreading.
+// keeps the scan quick and cheap. Raise it (Haiku's default is medium) before
+// reaching for a bigger model if receipts start misreading.
 const EFFORT = 'low';
-
-// If the model declines (a safety-classifier false positive), the API reruns the
-// request on a fallback model inside the same call instead of failing the scan.
-const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
 // Receipts are tall and narrow; 1400px on the long edge keeps small print
 // legible while cutting a 12MP camera shot down to a few hundred KB.
@@ -65,8 +65,13 @@ Rules:
 - "price" is the price of ONE unit, never the line total. A line reading "2 TACOS 9.00" is quantity 2 at price 4.50.
 - "quantity" is how many were ordered on that line. Use 1 when the receipt does not say.
 - Include food, drinks, sides, and any add-on or modifier that carries its own charge (as its own item).
-- Do NOT put subtotal, tax, tip, gratuity, service charge, discounts, or the grand total in "items". Report those in their own top-level fields.
-- Omit "tip" entirely if the tip line is blank, dashed, or unfilled.
+- Do NOT put subtotal, tax, tip, gratuity, service charge, or the grand total in "items". Report those in their own top-level fields.
+- "subtotal" is the item total AFTER comps and item discounts, BEFORE whole-bill discounts, tax, and tip. If the receipt prints its subtotal above the comp or discount lines, subtract those lines from it.
+- "tip" covers any tip, gratuity, auto-gratuity, or service charge. If there is more than one, add them together.
+- Comped items ("on the house", "comp", "void", 100% off): still include the item, with price 0 and " (on the house)" added to its name. If only some units of a line are comped, split it: the paid units as one item, the comped units as a separate "(on the house)" item at price 0.
+- A discount or negative line that applies to one specific item: subtract it from that item instead of listing it separately. "2 BEER 12.00" followed by "HAPPY HOUR -6.00" is quantity 2 at price 3.00.
+- A discount on the whole bill (percent off the total, coupon, promo code) is not an item: leave it out of "items".
+- Omit "tip" entirely if there is no tip, gratuity, or service charge, or the tip line is blank, dashed, or unfilled.
 - Use the item name exactly as printed, minus any leading quantity digits and trailing dot leaders.
 - Money values are plain numbers with no currency symbol.
 - If the photo is too blurry or is not a receipt, return an empty "items" array.`;
@@ -156,13 +161,11 @@ export const parseReceipt = async (imageUri: string): Promise<ScanResult> => {
   // for minutes.
   const client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: 1 });
 
-  let response: Anthropic.Beta.BetaMessage;
+  let response: Anthropic.Message;
   try {
-    response = await client.beta.messages.create({
+    response = await client.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      betas: [FALLBACK_BETA],
-      fallbacks: 'default',
       output_config: {
         effort: EFFORT,
         format: { type: 'json_schema', schema: RECEIPT_SCHEMA },
@@ -181,6 +184,8 @@ export const parseReceipt = async (imageUri: string): Promise<ScanResult> => {
     throw toScanError(err);
   }
 
+  // Haiku has no server-side refusal fallback; a safety-classifier decline on a
+  // receipt should be very rare, so it's surfaced as a retryable error.
   if (response.stop_reason === 'refusal') {
     throw new ReceiptScanError('api', "The scanning service declined that photo. Try another shot.");
   }
@@ -189,7 +194,7 @@ export const parseReceipt = async (imageUri: string): Promise<ScanResult> => {
   }
 
   const outputText = response.content.find(
-    (b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text',
+    (b): b is Anthropic.TextBlock => b.type === 'text',
   )?.text;
   if (!outputText) {
     throw new ReceiptScanError('parse', 'Got an unexpected response from the scanning service.');
