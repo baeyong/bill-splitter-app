@@ -17,7 +17,7 @@
       "package": "com.baeyong.billsplitter",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1B1B18"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -32,7 +32,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#EDEBE4"
         }
       ],
       [
