@@ -8,11 +8,12 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Column, DashedRule, Leader, Paper, PaperButton, Stamp } from '../components/paper';
 import { useBill } from '../context/BillContext';
+import { colors, fonts, text } from '../theme';
 import { PendingScan } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
 import { ReceiptScanError, parseReceipt } from '../utils/parseReceipt';
@@ -123,233 +124,234 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
     ]);
   };
 
+  const lineCount = result?.items.length ?? 0;
+
   return (
     <View style={styles.flex}>
       <ScrollView
+        style={styles.flex}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {!imageUri && (
-          <View style={styles.intro}>
-            <Text style={styles.introTitle}>Snap the receipt</Text>
-            <Text style={styles.introBody}>
-              Lay it flat and get the whole thing in frame. You'll go through the items one at a
-              time and say who had what.
-            </Text>
-            <Text style={styles.introNote}>
-              The photo is sent to Anthropic's Claude API to be read. Nothing else in the app leaves
-              your phone.
-            </Text>
-          </View>
-        )}
+        <Column style={styles.stack}>
+          {!imageUri && (
+            <Paper style={styles.card}>
+              <Text style={styles.cardTitle}>Snap the receipt</Text>
+              <Text style={text.body}>
+                Lay it flat and get the whole thing in frame. You'll go through the lines one at a
+                time and say who had what.
+              </Text>
+              <DashedRule />
+              <Text style={text.hint}>
+                The photo is sent to Anthropic's Claude API to be read. Nothing else in the app
+                leaves your phone.
+              </Text>
+            </Paper>
+          )}
 
-        {imageUri && (
-          <View style={styles.previewWrap}>
-            <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="contain" />
-          </View>
-        )}
-
-        <View style={styles.pickRow}>
-          <TouchableOpacity
-            style={styles.pickBtn}
-            onPress={() => confirmReplace(takePhoto)}
-            disabled={scanning}
-          >
-            <Text style={styles.pickBtnText}>{imageUri ? 'Retake' : 'Take photo'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.pickBtn}
-            onPress={() => confirmReplace(pickPhoto)}
-            disabled={scanning}
-          >
-            <Text style={styles.pickBtnText}>Choose photo</Text>
-          </TouchableOpacity>
-        </View>
-
-        {error && (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {result && (
-          <View style={styles.resultCard}>
-            {result.restaurantName && (
-              <Text style={styles.resultTitle}>{result.restaurantName}</Text>
-            )}
-            <Text style={styles.resultCount}>
-              {result.items.length} item{result.items.length === 1 ? '' : 's'} · $
-              {itemsTotal.toFixed(2)}
-            </Text>
-
-            <View style={styles.itemPreviewList}>
-              {result.items.map((item) => (
-                <View key={item.id} style={styles.itemPreviewRow}>
-                  <Text style={styles.itemPreviewName} numberOfLines={1}>
-                    {item.quantity > 1 ? `${item.quantity} × ${item.name}` : item.name}
-                  </Text>
-                  <Text style={styles.itemPreviewPrice}>
-                    ${(item.price * item.quantity).toFixed(2)}
-                  </Text>
-                </View>
-              ))}
+          {imageUri && (
+            <View style={styles.previewWrap}>
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.preview}
+                resizeMode="contain"
+                accessibilityLabel="Your receipt photo"
+              />
             </View>
+          )}
 
-            {(canApplyTax || canApplyTip) && (
-              <>
-                <View style={styles.divider} />
-                <Text style={styles.taxTipNote}>
-                  Tax and tip from this receipt apply to this bill only. Every new bill starts
-                  again from your saved tax rate and an 18% tip.
-                </Text>
-              </>
-            )}
-
-            {canApplyTax && result.tax !== undefined && (
-              <View style={styles.toggleRow}>
-                <View style={styles.flex}>
-                  <Text style={styles.toggleLabel}>
-                    Use receipt tax · ${result.tax.toFixed(2)}
-                  </Text>
-                  <Text style={styles.toggleHint}>
-                    Exactly as printed, split by share · this bill only
-                  </Text>
-                </View>
-                <Switch
-                  value={useTax}
-                  onValueChange={setUseTax}
-                  trackColor={{ true: '#3AB795', false: '#ccc' }}
-                />
-              </View>
-            )}
-
-            {canApplyTip && result.tip !== undefined && (
-              <View style={styles.toggleRow}>
-                <View style={styles.flex}>
-                  <Text style={styles.toggleLabel}>
-                    Use receipt tip · ${result.tip.toFixed(2)}
-                  </Text>
-                  <Text style={styles.toggleHint}>Split proportionally, just this bill</Text>
-                </View>
-                <Switch
-                  value={useTip}
-                  onValueChange={setUseTip}
-                  trackColor={{ true: '#3AB795', false: '#ccc' }}
-                />
-              </View>
-            )}
+          <View style={styles.pickRow}>
+            <PaperButton
+              title={imageUri ? 'Retake' : 'Take photo'}
+              variant="outline"
+              compact
+              disabled={scanning}
+              onPress={() => confirmReplace(takePhoto)}
+              style={styles.flex1}
+            />
+            <PaperButton
+              title="Choose photo"
+              variant="outline"
+              compact
+              disabled={scanning}
+              onPress={() => confirmReplace(pickPhoto)}
+              style={styles.flex1}
+            />
           </View>
-        )}
+
+          {error && (
+            <View style={styles.errorCard} accessibilityRole="alert">
+              <Text style={styles.errorTitle}>Couldn't read it</Text>
+              <Text style={text.body}>{error}</Text>
+            </View>
+          )}
+
+          {result && (
+            <Paper style={styles.card}>
+              <View style={styles.resultHead}>
+                <View style={styles.flex1}>
+                  <Text style={styles.cardTitle}>{result.restaurantName || 'Your receipt'}</Text>
+                  <Text style={text.label}>
+                    {lineCount} line{lineCount === 1 ? '' : 's'} found · {itemsTotal.toFixed(2)}
+                  </Text>
+                </View>
+                <Stamp label="Read ✓" rotate={6} size={12} />
+              </View>
+              <DashedRule />
+              <View style={styles.lines}>
+                {result.items.map((item) => (
+                  <Leader
+                    key={item.id}
+                    label={`${item.quantity} x ${item.name}`}
+                    value={(item.price * item.quantity).toFixed(2)}
+                    size="sm"
+                  />
+                ))}
+              </View>
+
+              {(canApplyTax || canApplyTip) && (
+                <>
+                  <DashedRule />
+                  <Text style={text.hint}>
+                    Tax and tip from this receipt apply to this bill only. Every new bill starts
+                    again from your saved tax rate and an 18% tip.
+                  </Text>
+                </>
+              )}
+
+              {canApplyTax && result.tax !== undefined && (
+                <View style={styles.toggleRow}>
+                  <View style={styles.flex1}>
+                    <Text style={styles.toggleLabel}>Use receipt tax · {result.tax.toFixed(2)}</Text>
+                    <Text style={text.hint}>Exactly as printed, split by share</Text>
+                  </View>
+                  <Switch
+                    value={useTax}
+                    onValueChange={setUseTax}
+                    trackColor={{ true: colors.ink, false: colors.rule }}
+                    accessibilityLabel="Use receipt tax"
+                  />
+                </View>
+              )}
+
+              {canApplyTip && result.tip !== undefined ? (
+                <View style={styles.toggleRow}>
+                  <View style={styles.flex1}>
+                    <Text style={styles.toggleLabel}>Use receipt tip · {result.tip.toFixed(2)}</Text>
+                    <Text style={text.hint}>Includes any gratuity or service charge, split by share</Text>
+                  </View>
+                  <Switch
+                    value={useTip}
+                    onValueChange={setUseTip}
+                    trackColor={{ true: colors.ink, false: colors.rule }}
+                    accessibilityLabel="Use receipt tip"
+                  />
+                </View>
+              ) : (
+                <Text style={text.hint}>No tip on the receipt, so the tip stays at 18%.</Text>
+              )}
+            </Paper>
+          )}
+        </Column>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
-        {result && progress ? (
-          <>
-            <TouchableOpacity style={styles.primaryBtn} onPress={startAssigning}>
-              <Text style={styles.primaryBtnText}>
-                Continue assigning (item {Math.min(progress.index + 1, progress.drafts.length)} of{' '}
-                {progress.drafts.length})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.startOverBtn}
-              onPress={confirmStartOver}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.startOverText}>Start over</Text>
-            </TouchableOpacity>
-          </>
-        ) : result ? (
-          <TouchableOpacity style={styles.primaryBtn} onPress={startAssigning}>
-            <Text style={styles.primaryBtnText}>
-              Assign {result.items.length} item{result.items.length === 1 ? '' : 's'}
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.primaryBtn, (!imageUri || scanning) && styles.btnDisabled]}
-            disabled={!imageUri || scanning}
-            onPress={scan}
-          >
-            {scanning ? (
-              <View style={styles.scanningRow}>
-                <ActivityIndicator color="#fff" />
-                <Text style={styles.primaryBtnText}>Reading receipt…</Text>
-              </View>
-            ) : (
-              <Text style={styles.primaryBtnText}>Scan receipt</Text>
-            )}
-          </TouchableOpacity>
-        )}
+      <View style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}>
+        <Column style={styles.footerStack}>
+          {result && progress ? (
+            <>
+              <PaperButton
+                title={`Continue · line ${Math.min(progress.index + 1, progress.drafts.length)} of ${progress.drafts.length} ›`}
+                onPress={startAssigning}
+              />
+              <PaperButton title="Start over" variant="outline" compact onPress={confirmStartOver} />
+            </>
+          ) : result ? (
+            <PaperButton
+              title={`Assign ${lineCount} line${lineCount === 1 ? '' : 's'} ›`}
+              onPress={startAssigning}
+            />
+          ) : scanning ? (
+            <View style={styles.scanning} accessibilityRole="progressbar" accessibilityLabel="Reading receipt">
+              <ActivityIndicator color={colors.paper} />
+              <Text style={styles.scanningText}>Reading receipt…</Text>
+            </View>
+          ) : (
+            <PaperButton title="Scan receipt" disabled={!imageUri} onPress={scan} />
+          )}
+        </Column>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  scroll: { padding: 16, paddingBottom: 24 },
-  intro: { paddingVertical: 12, gap: 8 },
-  introTitle: { fontSize: 20, fontWeight: '700', color: '#222' },
-  introBody: { fontSize: 15, color: '#555', lineHeight: 21 },
-  introNote: { fontSize: 12, color: '#999', lineHeight: 17, marginTop: 4 },
+  flex: { flex: 1, backgroundColor: colors.ground },
+  flex1: { flex: 1 },
+  scroll: { padding: 20, paddingTop: 8, paddingBottom: 24 },
+  stack: { gap: 14 },
+  card: { gap: 12 },
+  cardTitle: {
+    fontFamily: fonts.monoBold,
+    fontSize: 18,
+    letterSpacing: 2,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
   previewWrap: {
-    height: 280,
-    backgroundColor: '#fafafa',
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 12,
+    height: 260,
+    backgroundColor: colors.photo,
+    borderWidth: 1.5,
+    borderColor: colors.faint,
+    borderStyle: 'dashed',
   },
   preview: { width: '100%', height: '100%' },
-  pickRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  pickBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#3AB795',
-  },
-  pickBtnText: { color: '#3AB795', fontWeight: '600' },
+  pickRow: { flexDirection: 'row', gap: 10 },
   errorCard: {
-    marginTop: 16,
-    backgroundColor: '#FDECEA',
-    borderRadius: 10,
+    backgroundColor: colors.paper,
+    borderWidth: 2,
+    borderColor: colors.danger,
     padding: 14,
+    gap: 6,
   },
-  errorText: { color: '#8B2C22', fontSize: 14, lineHeight: 20 },
-  resultCard: {
-    marginTop: 16,
-    backgroundColor: '#E8F7F1',
-    borderRadius: 12,
-    padding: 16,
+  errorTitle: {
+    fontFamily: fonts.monoBold,
+    fontSize: 14,
+    letterSpacing: 1,
+    color: colors.danger,
+    textTransform: 'uppercase',
   },
-  resultTitle: { fontSize: 17, fontWeight: '700', color: '#222' },
-  resultCount: { fontSize: 13, color: '#3AB795', fontWeight: '600', marginTop: 2 },
-  itemPreviewList: { marginTop: 12, gap: 6 },
-  itemPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  itemPreviewName: { flex: 1, fontSize: 14, color: '#333' },
-  itemPreviewPrice: { fontSize: 14, fontWeight: '600', color: '#333' },
-  divider: { height: 1, backgroundColor: '#C9E7DA', marginVertical: 14 },
-  taxTipNote: { fontSize: 13, color: '#556', lineHeight: 18, marginBottom: 12 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  toggleLabel: { fontSize: 15, fontWeight: '600', color: '#222' },
-  toggleHint: { fontSize: 12, color: '#678', marginTop: 2 },
+  resultHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  lines: { gap: 6 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  toggleLabel: {
+    fontFamily: fonts.monoBold,
+    fontSize: 14,
+    letterSpacing: 0.5,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
   footer: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: colors.rule,
+    backgroundColor: colors.ground,
   },
-  primaryBtn: {
-    backgroundColor: '#3AB795',
-    paddingVertical: 16,
-    borderRadius: 10,
+  footerStack: { gap: 10 },
+  scanning: {
+    height: 56,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: colors.ink,
   },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  btnDisabled: { opacity: 0.4 },
-  startOverBtn: { alignItems: 'center', paddingTop: 12 },
-  startOverText: { color: '#888', fontSize: 14, fontWeight: '600' },
-  scanningRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scanningText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 15,
+    letterSpacing: 2,
+    color: colors.paper,
+    textTransform: 'uppercase',
+  },
 });
