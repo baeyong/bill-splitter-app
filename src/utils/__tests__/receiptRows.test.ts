@@ -145,7 +145,8 @@ describe('rowsFromProgress', () => {
     index: 0,
     assignments: {},
     unitCounts: {},
-    shareEvenly: {},
+    lineMode: {},
+    unitPeople: {},
     skipped: {},
     ...patch,
   });
@@ -155,7 +156,7 @@ describe('rowsFromProgress', () => {
       progress({
         unitCounts: { d1: { a: 2 } },
         assignments: { d2: ['b'], d3: ['a', 'c'] },
-        shareEvenly: { d3: true },
+        lineMode: { d3: 'all' },
         skipped: { d4: true },
       }),
     );
@@ -164,6 +165,18 @@ describe('rowsFromProgress', () => {
     expect(rows[2]).toMatchObject({ shared: [{ personIds: ['a', 'c'], units: 2 }], unassigned: 0 });
     expect(rows[3].skipped).toBe(true);
     expect(rowWarning(rows[3])).toBe('Skipped — not assigned');
+  });
+
+  it('shows a part-shared line as one personal and one shared unit', () => {
+    const rows = rowsFromProgress(
+      progress({
+        drafts: [{ id: 'p', name: 'Pizza', priceText: '12', quantity: 2 }],
+        lineMode: { p: 'units' },
+        unitPeople: { p: [['a'], ['b', 'c']] },
+      }),
+    );
+    expect(rows[0]).toMatchObject({ owned: { a: 1 }, shared: [{ personIds: ['b', 'c'], units: 1 }], unassigned: 0 });
+    expect(describeRow(rows[0], people)).toBe('Alice · Shared · Bob, Cara');
   });
 
   it('treats an unparseable price as $0 instead of NaN', () => {

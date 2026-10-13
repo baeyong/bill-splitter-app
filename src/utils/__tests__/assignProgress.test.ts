@@ -1,5 +1,12 @@
 import { AssignProgress } from '../../types/scan';
-import { forPeople, progressToBill } from '../assignProgress';
+import {
+  countsFromUnits,
+  forPeople,
+  progressToBill,
+  resizeUnits,
+  unitsFromCounts,
+  unitsFromShared,
+} from '../assignProgress';
 
 const progress = (patch: Partial<AssignProgress>): AssignProgress => ({
   drafts: [
@@ -10,7 +17,8 @@ const progress = (patch: Partial<AssignProgress>): AssignProgress => ({
   index: 0,
   assignments: {},
   unitCounts: {},
-  shareEvenly: {},
+  lineMode: {},
+  unitPeople: {},
   skipped: {},
   ...patch,
 });
@@ -31,7 +39,7 @@ describe('progressToBill', () => {
     const { entries } = progressToBill(
       progress({
         assignments: { d3: ['a', 'b'] },
-        shareEvenly: { d3: true },
+        lineMode: { d3: 'all' },
         skipped: { d1: true, d2: true },
       }),
     );
@@ -97,5 +105,65 @@ describe('forPeople', () => {
     expect(restored.unitCounts).toEqual({ d1: { a: 1 } });
     expect(restored.index).toBe(2);
     expect(restored.skipped).toEqual({ d3: true });
+  });
+});
+
+describe('part-shared lines ("units" mode)', () => {
+  const pizza = (patch: Partial<AssignProgress>) =>
+    progress({
+      drafts: [{ id: 'p', name: 'Pizza', priceText: '12', quantity: 2 }],
+      lineMode: { p: 'units' },
+      ...patch,
+    });
+
+  it('one personal pizza and one shared pizza become an Item and a SharedItem', () => {
+    const { entries } = progressToBill(pizza({ unitPeople: { p: [['a'], ['b', 'c']] } }));
+    expect(entries).toEqual([
+      { name: 'Pizza', price: 12, personIds: ['a'], lineId: 'p' },
+      { name: 'Pizza', price: 12, personIds: ['b', 'c'], lineId: 'p' },
+    ]);
+  });
+
+  it('leaves a unit nobody was picked for unassigned', () => {
+    const { entries } = progressToBill(pizza({ unitPeople: { p: [['a'], []] } }));
+    expect(entries).toHaveLength(1);
+  });
+
+  it('follows the quantity if it changes after picking', () => {
+    const { entries } = progressToBill(
+      pizza({
+        drafts: [{ id: 'p', name: 'Pizza', priceText: '12', quantity: 1 }],
+        unitPeople: { p: [['a'], ['b', 'c']] },
+        assignments: { p: ['a'] },
+      }),
+    );
+    // Quantity 1 is always picked as one group, whatever mode was set.
+    expect(entries).toEqual([{ name: 'Pizza', price: 12, personIds: ['a'], lineId: 'p' }]);
+  });
+
+  it('drops a removed person from a shared unit but keeps the rest', () => {
+    const restored = forPeople(pizza({ unitPeople: { p: [['a'], ['b', 'gone']] } }), new Set(['a', 'b']));
+    expect(restored.unitPeople.p).toEqual([['a'], ['b']]);
+  });
+});
+
+describe('switching modes keeps what was picked', () => {
+  it('one-each counts become per-unit picks and back', () => {
+    const units = unitsFromCounts(3, { a: 2, b: 1 });
+    expect(units).toEqual([['a'], ['a'], ['b']]);
+    expect(countsFromUnits(units)).toEqual({ a: 2, b: 1 });
+  });
+
+  it('going back to one-each drops only the shared units', () => {
+    expect(countsFromUnits([['a'], ['b', 'c']])).toEqual({ a: 1 });
+  });
+
+  it('pads unpicked units and trims extras', () => {
+    expect(unitsFromCounts(3, { a: 1 })).toEqual([['a'], [], []]);
+    expect(resizeUnits([['a'], ['b'], ['c']], 2)).toEqual([['a'], ['b']]);
+  });
+
+  it('all-shared becomes the same group on every unit', () => {
+    expect(unitsFromShared(2, ['a', 'b'])).toEqual([['a', 'b'], ['a', 'b']]);
   });
 });

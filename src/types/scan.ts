@@ -39,15 +39,27 @@ export type PendingScan = {
 /** A line as edited on AssignItems. Price stays text so partial input works. */
 export type AssignDraft = { id: string; name: string; priceText: string; quantity: number };
 
+/**
+ * How a multi-unit line ("2 × Pizza") is handed out:
+ * - 'each': units go to one person at a time ("Alice 2, Bob 1") — the default.
+ * - 'all': every unit is shared by the same people.
+ * - 'units': each unit picked separately, so one can be personal and another
+ *   shared ("Alice had one; Bob and Cara split the other").
+ * A single-unit line is always picked like 'all'.
+ */
+export type LineMode = 'each' | 'all' | 'units';
+
 /** Everything the user has done on AssignItems, keyed by draft id. */
 export type AssignProgress = {
   drafts: AssignDraft[];
   index: number;
-  // Who shares a line: single-unit lines, and multi-unit lines shared evenly.
+  lineMode: Record<string, LineMode>;
+  // 'all' mode (and single-unit lines): who shares it.
   assignments: Record<string, string[]>;
-  // How many units of a multi-unit line each person had ("Alice 2, Bob 1").
+  // 'each' mode: how many units each person had.
   unitCounts: Record<string, Record<string, number>>;
-  shareEvenly: Record<string, boolean>;
+  // 'units' mode: who had each unit — one name personal, several shared.
+  unitPeople: Record<string, string[][]>;
   skipped: Record<string, boolean>;
 };
 

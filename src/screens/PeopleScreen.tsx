@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import { Feather } from '@expo/vector-icons';
+import React, { useLayoutEffect, useState } from 'react';
 import {
   Alert,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Column, DashedRule, Leader, Paper, PaperButton } from '../components/paper';
 import { useBill } from '../context/BillContext';
+import { colors, fonts, text } from '../theme';
 import { ScreenProps } from '../types/navigation';
 import { describeTax } from '../utils/calculate';
 import { MAX_PERSON_NAME } from '../utils/money';
@@ -22,6 +25,24 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
   const [nameInput, setNameInput] = useState('');
   const itemCount =
     bill.people.reduce((sum, p) => sum + p.items.length, 0) + bill.sharedItems.length;
+  const taxLabel = `${bill.stateCode} ${describeTax(bill)}`;
+
+  // The bill's state and tax sit in the bar's corner and open Settings.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('Setup')}
+          accessibilityRole="button"
+          accessibilityLabel={`Tax ${taxLabel}. Change in settings`}
+          hitSlop={8}
+          style={({ pressed }) => pressed && { opacity: 0.6 }}
+        >
+          <Text style={styles.headerLink}>{taxLabel}</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, taxLabel]);
 
   const addName = () => {
     const trimmed = nameInput.trim();
@@ -38,207 +59,196 @@ export default function PeopleScreen({ navigation }: ScreenProps<'People'>) {
     setPeople(bill.people.filter((p) => p.id !== id).map((p) => p.name));
   };
 
+  const confirmRemove = (id: string, name: string) =>
+    Alert.alert('Remove person?', `Remove ${name} and their items?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => removePerson(id) },
+    ]);
+
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerText}>
-          {bill.stateCode} · Tax {describeTax(bill)}
-        </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Setup')}>
-          <Text style={styles.headerEdit}>Edit</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.addRow}>
-        <TextInput
-          style={styles.input}
-          value={nameInput}
-          onChangeText={setNameInput}
-          placeholder="Add a person"
-          maxLength={MAX_PERSON_NAME}
-          onSubmitEditing={addName}
-          returnKeyType="done"
-          autoCapitalize="words"
-        />
-        <TouchableOpacity style={styles.addBtn} onPress={addName}>
-          <Text style={styles.addBtnText}>Add</Text>
-        </TouchableOpacity>
-      </View>
-
-      {bill.people.length > 0 && (
-        <TouchableOpacity
-          style={styles.scanBtn}
-          onPress={() => navigation.navigate('ScanReceipt')}
-        >
-          <Text style={styles.scanBtnText}>📷  Scan a receipt</Text>
-          <Text style={styles.scanBtnHint}>Read the items off a photo instead of typing</Text>
-        </TouchableOpacity>
-      )}
-
-      {itemCount > 0 && (
-        <TouchableOpacity
-          style={styles.reviewRow}
-          onPress={() => navigation.navigate('AllItems')}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Text style={styles.reviewText}>
-            Review all {itemCount} item{itemCount === 1 ? '' : 's'}
-          </Text>
-          <Text style={styles.reviewText}>›</Text>
-        </TouchableOpacity>
-      )}
-
-      <FlatList
-        data={bill.people}
-        keyExtractor={(p) => p.id}
-        contentContainerStyle={styles.list}
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        ListEmptyComponent={
-          <Text style={styles.empty}>Add everyone who ate to start splitting.</Text>
-        }
-        renderItem={({ item }) => {
-          const itemCount = item.items.length;
-          const itemsTotal = item.items.reduce((sum, i) => sum + i.price, 0);
-          return (
-            <TouchableOpacity
-              style={styles.personRow}
-              onPress={() => navigation.navigate('PersonItems', { personId: item.id })}
-            >
-              <View style={styles.flex}>
-                <Text style={styles.personName}>{item.name}</Text>
-                <Text style={styles.personMeta}>
-                  {itemCount} item{itemCount === 1 ? '' : 's'} · ${itemsTotal.toFixed(2)}
-                </Text>
-              </View>
-              <TouchableOpacity
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                onPress={() =>
-                  Alert.alert('Remove person?', `Remove ${item.name} and their items?`, [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Remove', style: 'destructive', onPress: () => removePerson(item.id) },
-                  ])
-                }
-              >
-                <Text style={styles.removeText}>✕</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          );
-        }}
-      />
+      >
+        <Column style={styles.stack}>
+          <View style={styles.addRow}>
+            <TextInput
+              style={styles.input}
+              value={nameInput}
+              onChangeText={setNameInput}
+              placeholder="Add a person"
+              placeholderTextColor={colors.muted}
+              maxLength={MAX_PERSON_NAME}
+              onSubmitEditing={addName}
+              returnKeyType="done"
+              autoCapitalize="words"
+              accessibilityLabel="Person's name"
+            />
+            <PaperButton title="Add" compact onPress={addName} style={styles.addBtn} />
+          </View>
 
-      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => navigation.navigate('SharedItems')}
-        >
-          <Text style={styles.secondaryBtnText}>
-            Shared items ({bill.sharedItems.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.primaryBtn, bill.people.length === 0 && styles.btnDisabled]}
-          disabled={bill.people.length === 0}
-          onPress={() => navigation.navigate('Summary')}
-        >
-          <Text style={styles.primaryBtnText}>View Summary</Text>
-        </TouchableOpacity>
+          {bill.people.length > 0 && (
+            <Pressable
+              onPress={() => navigation.navigate('ScanReceipt')}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.scanCard, pressed && { opacity: 0.7 }]}
+            >
+              <Feather name="camera" size={22} color={colors.ink} />
+              <View style={styles.flexText}>
+                <Text style={styles.scanTitle}>Scan a receipt</Text>
+                <Text style={text.hint}>Read the items off a photo instead of typing</Text>
+              </View>
+              <Text style={styles.chevron} accessibilityElementsHidden>
+                ›
+              </Text>
+            </Pressable>
+          )}
+
+          <Paper style={styles.list}>
+            <View style={styles.listHeader}>
+              <Text style={text.label}>Guest</Text>
+              <Text style={text.label}>Own items</Text>
+            </View>
+            <DashedRule />
+            {bill.people.length === 0 ? (
+              <Text style={[text.hint, styles.empty]}>Add everyone who ate to start splitting.</Text>
+            ) : (
+              bill.people.map((p) => {
+                const count = p.items.length;
+                const total = p.items.reduce((sum, i) => sum + i.price, 0);
+                return (
+                  <View key={p.id} style={styles.personRow}>
+                    <Pressable
+                      onPress={() => navigation.navigate('PersonItems', { personId: p.id })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${p.name}, ${count} item${count === 1 ? '' : 's'}, ${total.toFixed(2)} dollars`}
+                      style={({ pressed }) => [styles.personMain, pressed && { opacity: 0.6 }]}
+                    >
+                      <Leader label={p.name} value={total.toFixed(2)} size="lg" bold />
+                      <Text style={text.hint}>
+                        {count} item{count === 1 ? '' : 's'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => confirmRemove(p.id, p.name)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${p.name}`}
+                      style={({ pressed }) => [styles.removeBtn, pressed && { opacity: 0.5 }]}
+                    >
+                      <Feather name="x" size={18} color={colors.faint} />
+                    </Pressable>
+                  </View>
+                );
+              })
+            )}
+            {itemCount > 0 && (
+              <Pressable
+                onPress={() => navigation.navigate('AllItems')}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.reviewRow, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.reviewText}>
+                  Review all {itemCount} item{itemCount === 1 ? '' : 's'}
+                </Text>
+                <Text style={styles.reviewText} accessibilityElementsHidden>
+                  ›
+                </Text>
+              </Pressable>
+            )}
+          </Paper>
+        </Column>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: 14 + insets.bottom }]}>
+        <Column style={styles.footerRow}>
+          <PaperButton
+            title={`Shared items (${bill.sharedItems.length})`}
+            variant="outline"
+            onPress={() => navigation.navigate('SharedItems')}
+            style={styles.flexBtn}
+          />
+          <PaperButton
+            title="Summary ›"
+            disabled={bill.people.length === 0}
+            onPress={() => navigation.navigate('Summary')}
+            style={styles.flexBtn}
+          />
+        </Column>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#E8F7F1',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerText: { fontSize: 13, color: '#444' },
-  headerEdit: { color: '#3AB795', fontWeight: '600', fontSize: 14 },
-  addRow: { flexDirection: 'row', padding: 16, gap: 8 },
+  flex: { flex: 1, backgroundColor: colors.ground },
+  flexText: { flex: 1, gap: 2 },
+  scroll: { padding: 20, paddingTop: 8 },
+  stack: { gap: 12 },
+  headerLink: { fontFamily: fonts.mono, fontSize: 13, color: colors.muted, letterSpacing: 0.5 },
+  addRow: { flexDirection: 'row', gap: 8 },
   input: {
+    ...text.input,
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+    height: 50,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    paddingHorizontal: 14,
   },
-  addBtn: {
-    backgroundColor: '#3AB795',
-    paddingHorizontal: 18,
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  addBtnText: { color: '#fff', fontWeight: '600' },
-  scanBtn: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#E8F7F1',
-    borderWidth: 1,
-    borderColor: '#C9E7DA',
-  },
-  scanBtnText: { color: '#3AB795', fontWeight: '700', fontSize: 15 },
-  scanBtnHint: { color: '#678', fontSize: 12, marginTop: 2 },
-  reviewRow: {
+  addBtn: { height: 50 },
+  scanCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingVertical: 6,
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
   },
-  reviewText: { color: '#3AB795', fontWeight: '600', fontSize: 14 },
-  list: { paddingHorizontal: 16, paddingBottom: 16 },
-  empty: { color: '#999', textAlign: 'center', marginTop: 40 },
+  scanTitle: {
+    fontFamily: fonts.monoBold,
+    fontSize: 15,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
+  chevron: { fontFamily: fonts.mono, fontSize: 18, color: colors.ink },
+  list: { paddingVertical: 14, gap: 0 },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 8 },
+  empty: { paddingVertical: 20, textAlign: 'center' },
   personRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    backgroundColor: '#fafafa',
-    borderRadius: 10,
-    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
   },
-  personName: { fontSize: 17, fontWeight: '600' },
-  personMeta: { fontSize: 13, color: '#777', marginTop: 2 },
-  removeText: { fontSize: 18, color: '#c62828', paddingHorizontal: 8 },
-  footer: {
+  personMain: { flex: 1, paddingVertical: 12, gap: 2 },
+  removeBtn: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  reviewRow: {
+    minHeight: 44,
     flexDirection: 'row',
-    padding: 16,
-    gap: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  reviewText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: colors.rule,
+    backgroundColor: colors.ground,
   },
-  secondaryBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#3AB795',
-  },
-  secondaryBtnText: { color: '#3AB795', fontWeight: '600' },
-  primaryBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#3AB795',
-  },
-  primaryBtnText: { color: '#fff', fontWeight: '600' },
-  btnDisabled: { opacity: 0.4 },
+  footerRow: { flexDirection: 'row', gap: 10 },
+  flexBtn: { flex: 1, paddingHorizontal: 8 },
 });

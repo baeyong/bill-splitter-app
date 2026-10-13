@@ -149,6 +149,9 @@ export function PaperButton({
       ]}
     >
       <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
         style={[
           styles.buttonText,
           { color: variant === 'primary' ? colors.paper : variant === 'danger' ? colors.danger : colors.ink },

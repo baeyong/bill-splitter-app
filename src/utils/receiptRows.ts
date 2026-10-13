@@ -1,5 +1,6 @@
 import { Bill, EntryRef, Person } from '../types/bill';
 import { AssignProgress } from '../types/scan';
+import { unitsOfLine } from './assignProgress';
 import { parsePrice } from './money';
 
 /**
@@ -101,12 +102,11 @@ export const rowsFromProgress = (progress: AssignProgress): ReceiptRow[] =>
     row.lineId = d.id;
     if (progress.skipped[d.id]) {
       row.skipped = true;
-    } else if (d.quantity > 1 && !progress.shareEvenly[d.id]) {
-      row.owned = { ...(progress.unitCounts[d.id] ?? {}) };
     } else {
-      const ids = progress.assignments[d.id] ?? [];
-      if (ids.length === 1) row.owned = { [ids[0]]: d.quantity };
-      else if (ids.length > 1) row.shared = [{ personIds: ids, units: d.quantity }];
+      for (const ids of unitsOfLine(progress, d)) {
+        if (ids.length === 1) row.owned[ids[0]] = (row.owned[ids[0]] ?? 0) + 1;
+        else if (ids.length > 1) addShared(row, ids, 1);
+      }
     }
     row.unassigned = Math.max(0, d.quantity - assignedUnits(row));
     return row;
