@@ -1,16 +1,19 @@
+import { Feather } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-  FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import { Column, DashedRule, Leader, NameChip, Paper, PaperButton, Stepper } from '../components/paper';
 import RecentItemsRow from '../components/RecentItemsRow';
 import { useBill } from '../context/BillContext';
+import { colors, fonts, text } from '../theme';
 import { ScreenProps } from '../types/navigation';
 import { MAX_ITEM_NAME, parsePrice, priceError } from '../utils/money';
 
@@ -23,16 +26,13 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
   const [qty, setQty] = useState(1);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
 
-  const toggle = (id: string) =>
-    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
-
-  const selectAll = () => {
-    const next: Record<string, boolean> = {};
-    bill.people.forEach((p) => {
-      next[p.id] = true;
-    });
-    setSelected(next);
-  };
+  const toggle = (id: string) => setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
+  const allIds = bill.people.map((p) => p.id);
+  const pickedCount = Object.values(selected).filter(Boolean).length;
+  const everyone = () =>
+    setSelected(
+      pickedCount === allIds.length ? {} : Object.fromEntries(allIds.map((id) => [id, true])),
+    );
 
   const add = () => {
     const trimmed = name.trim();
@@ -40,17 +40,12 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
     const ids = Object.keys(selected).filter((k) => selected[k]);
     if (!trimmed || isNaN(p) || ids.length === 0) return;
     const count = Math.max(1, Math.min(MAX_QTY, qty));
-    for (let i = 0; i < count; i++) {
-      addSharedItem(trimmed, p, ids);
-    }
+    for (let i = 0; i < count; i++) addSharedItem(trimmed, p, ids);
     setName('');
     setPrice('');
     setQty(1);
     setSelected({});
   };
-
-  const decQty = () => setQty((q) => Math.max(1, q - 1));
-  const incQty = () => setQty((q) => Math.min(MAX_QTY, q + 1));
 
   const pickRecent = (n: string, pr: number) => {
     setName(n);
@@ -64,215 +59,163 @@ export default function SharedItemsScreen({}: ScreenProps<'SharedItems'>) {
     setSelected({});
   };
 
-  const pickedCount = Object.values(selected).filter(Boolean).length;
-  const canAdd = name.trim().length > 0 && !isNaN(parsePrice(price)) && pickedCount > 0;
+  const priceOk = !isNaN(parsePrice(price));
+  const canAdd = name.trim().length > 0 && priceOk && pickedCount > 0;
   const priceWarning = priceError(price);
   // Name and price are in but nobody's picked — say why Add is greyed out.
-  const needsPeople = name.trim().length > 0 && !isNaN(parsePrice(price)) && pickedCount === 0;
+  const needsPeople = name.trim().length > 0 && priceOk && pickedCount === 0;
+  const hasInput = name.length > 0 || price.length > 0 || qty > 1 || pickedCount > 0;
 
-  const hasInput =
-    name.length > 0 || price.length > 0 || qty > 1 || Object.values(selected).some(Boolean);
+  const namesOf = (ids: string[]) =>
+    ids.map((id) => bill.people.find((p) => p.id === id)?.name ?? '?').join(', ');
 
-  const nameToLabel = (ids: string[]) =>
-    ids
-      .map((id) => bill.people.find((p) => p.id === id)?.name ?? '?')
-      .join(', ');
+  if (bill.people.length === 0) {
+    return (
+      <View style={styles.flex}>
+        <Text style={[text.hint, styles.empty]}>Add people first, then you can add shared dishes.</Text>
+      </View>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      {bill.people.length === 0 ? (
-        <Text style={styles.empty}>Add people first, then you can create shared items.</Text>
-      ) : (
-        <>
-          <View style={styles.addBlock}>
-            {hasInput && (
-              <View style={styles.headerRow}>
-                <View style={styles.flex} />
-                <TouchableOpacity
-                  onPress={clear}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.clearLink}>Clear</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <Column style={styles.stack}>
+          <Paper style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={text.label}>Add a shared dish</Text>
+              {hasInput && (
+                <Pressable onPress={clear} accessibilityRole="button" hitSlop={8}>
+                  <Text style={[styles.smallLink, styles.danger]}>Clear</Text>
+                </Pressable>
+              )}
+            </View>
             <RecentItemsRow filterText={name} onPick={pickRecent} />
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
               placeholder="Dish name (e.g. Calamari)"
+              placeholderTextColor={colors.muted}
               autoCapitalize="words"
               maxLength={MAX_ITEM_NAME}
+              accessibilityLabel="Dish name"
             />
-            <View style={styles.priceRow}>
+            <View style={styles.row}>
               <TextInput
-                style={[styles.input, styles.flex]}
+                style={[styles.input, styles.flex1]}
                 value={price}
                 onChangeText={setPrice}
-                placeholder="Total price (per item)"
+                placeholder="Price each"
+                placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
+                accessibilityLabel="Price each"
               />
-              <View style={styles.qtyBox}>
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={decQty}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.qtyBtnText}>−</Text>
-                </TouchableOpacity>
-                <Text style={styles.qtyValue}>{qty}</Text>
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={incQty}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.qtyBtnText}>+</Text>
-                </TouchableOpacity>
-              </View>
+              <Stepper value={qty} onChange={setQty} label="Quantity" max={MAX_QTY} />
             </View>
-            {priceWarning && <Text style={styles.warn}>{priceWarning}</Text>}
-            <View style={styles.rowBetween}>
-              <Text style={styles.sectionLabel}>Split between</Text>
-              <TouchableOpacity onPress={selectAll}>
-                <Text style={styles.link}>Select all</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.chipRow}>
-              {bill.people.map((p) => {
-                const isOn = !!selected[p.id];
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[styles.chip, isOn && styles.chipOn]}
-                    onPress={() => toggle(p.id)}
-                  >
-                    <Text style={[styles.chipText, isOn && styles.chipTextOn]}>{p.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            {needsPeople && <Text style={styles.hint}>Pick who shared it.</Text>}
-            <TouchableOpacity
-              style={[styles.addBtn, !canAdd && styles.btnDisabled]}
-              disabled={!canAdd}
-              onPress={add}
-            >
-              <Text style={styles.addBtnText}>Add shared item</Text>
-            </TouchableOpacity>
-          </View>
+            {priceWarning && <Text style={[text.hint, styles.danger]}>{priceWarning}</Text>}
 
-          <FlatList
-            data={bill.sharedItems}
-            keyExtractor={(s) => s.id}
-            contentContainerStyle={styles.list}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            ListEmptyComponent={
-              <Text style={styles.empty}>No shared items yet.</Text>
-            }
-            renderItem={({ item }) => {
-              const perPerson = item.personIds.length
-                ? item.totalPrice / item.personIds.length
-                : 0;
-              return (
-                <View style={styles.itemRow}>
-                  <View style={styles.flex}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemMeta}>
-                      ${item.totalPrice.toFixed(2)} · {item.personIds.length} way
-                      {item.personIds.length === 1 ? '' : 's'} · ${perPerson.toFixed(2)} each
-                    </Text>
-                    <Text style={styles.itemMetaLight}>{nameToLabel(item.personIds)}</Text>
+            <View style={styles.rowBetween}>
+              <Text style={styles.fieldLabel}>Split between</Text>
+              <Pressable onPress={everyone} accessibilityRole="button" hitSlop={8}>
+                <Text style={styles.smallLink}>
+                  {pickedCount === allIds.length ? 'Clear all' : 'Everyone'}
+                </Text>
+              </Pressable>
+            </View>
+            <View style={styles.chips}>
+              {bill.people.map((p) => (
+                <NameChip key={p.id} name={p.name} on={!!selected[p.id]} onPress={() => toggle(p.id)} />
+              ))}
+            </View>
+            {needsPeople && <Text style={text.hint}>Pick who shared it.</Text>}
+            <PaperButton title="Add shared item" compact disabled={!canAdd} onPress={add} />
+          </Paper>
+
+          <Paper style={styles.list}>
+            <Text style={[text.label, styles.listHead]}>Shared so far</Text>
+            <DashedRule />
+            {bill.sharedItems.length === 0 ? (
+              <Text style={[text.hint, styles.emptyList]}>No shared dishes yet.</Text>
+            ) : (
+              bill.sharedItems.map((item) => {
+                const ways = item.personIds.length;
+                return (
+                  <View key={item.id} style={styles.itemRow}>
+                    <View style={styles.itemMain}>
+                      <Leader label={item.name} value={item.totalPrice.toFixed(2)} bold />
+                      <Text style={text.hint}>
+                        {ways === bill.people.length && ways > 2 ? 'Everyone' : namesOf(item.personIds)}
+                        {ways > 0 ? ` · ${(item.totalPrice / ways).toFixed(2)} each` : ''}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => removeSharedItem(item.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${item.name}`}
+                      style={({ pressed }) => [styles.removeBtn, pressed && { opacity: 0.5 }]}
+                    >
+                      <Feather name="x" size={18} color={colors.faint} />
+                    </Pressable>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => removeSharedItem(item.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Text style={styles.removeText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            }}
-          />
-        </>
-      )}
+                );
+              })
+            )}
+          </Paper>
+        </Column>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  addBlock: {
-    padding: 16,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
+  flex: { flex: 1, backgroundColor: colors.ground },
+  flex1: { flex: 1 },
+  scroll: { padding: 20, paddingTop: 8, paddingBottom: 40 },
+  stack: { gap: 14 },
+  empty: { textAlign: 'center', marginTop: 40, paddingHorizontal: 20 },
+  card: { gap: 10 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  clearLink: { color: '#c62828', fontWeight: '600', fontSize: 14 },
-  priceRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  qtyBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+  fieldLabel: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  qtyBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  qtyBtnText: { fontSize: 18, fontWeight: '600', color: '#3AB795' },
-  qtyValue: { minWidth: 22, textAlign: 'center', fontSize: 16, fontWeight: '600' },
-  sectionLabel: { fontSize: 14, fontWeight: '600', color: '#444' },
-  link: { color: '#3AB795', fontWeight: '600' },
+  smallLink: {
+    fontFamily: fonts.monoBold,
+    fontSize: 12,
+    color: colors.ink,
+    textDecorationLine: 'underline',
+    textTransform: 'uppercase',
+  },
+  danger: { color: colors.danger },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    ...text.input,
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+    backgroundColor: colors.paper,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
-  },
-  chipOn: { backgroundColor: '#3AB795' },
-  chipText: { color: '#333', fontSize: 14 },
-  chipTextOn: { color: '#fff', fontWeight: '600' },
-  addBtn: {
-    backgroundColor: '#3AB795',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  addBtnText: { color: '#fff', fontWeight: '600' },
-  btnDisabled: { opacity: 0.4 },
-  warn: { color: '#c62828', fontSize: 13 },
-  hint: { color: '#777', fontSize: 13 },
-  list: { padding: 16 },
-  empty: { color: '#999', textAlign: 'center', marginTop: 40, paddingHorizontal: 20 },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  list: { paddingVertical: 14, gap: 0 },
+  listHead: { paddingBottom: 8 },
+  emptyList: { paddingVertical: 18, textAlign: 'center' },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    backgroundColor: '#fafafa',
-    borderRadius: 8,
-    marginBottom: 8,
-    gap: 12,
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
   },
-  itemName: { fontSize: 16, fontWeight: '600' },
-  itemMeta: { fontSize: 13, color: '#555', marginTop: 2 },
-  itemMetaLight: { fontSize: 12, color: '#888', marginTop: 2 },
-  removeText: { fontSize: 16, color: '#c62828', paddingHorizontal: 8 },
+  itemMain: { flex: 1, paddingVertical: 10, gap: 2 },
+  removeBtn: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
 });

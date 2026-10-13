@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, fonts } from '../theme';
 
 /** The scanned photo, full screen, with pinch-to-zoom for small print. */
 export default function ReceiptPhoto({
@@ -53,10 +54,16 @@ const styles = StyleSheet.create({
   close: {
     position: 'absolute',
     right: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
+    minHeight: 44,
+    justifyContent: 'center',
+    backgroundColor: colors.paper,
+    paddingHorizontal: 16,
   },
-  closeText: { fontWeight: '700', color: '#222' },
+  closeText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 14,
+    letterSpacing: 1.5,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
 });

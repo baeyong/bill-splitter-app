@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Column, Leader, Paper, PaperButton, Stamp } from '../components/paper';
+import { Column, Leader, NameChip, Paper, PaperButton, Stamp } from '../components/paper';
 import ReceiptPhoto from '../components/ReceiptPhoto';
 import ReceiptView from '../components/ReceiptView';
 import { useBill } from '../context/BillContext';
@@ -600,19 +600,6 @@ function PersonTile({
   );
 }
 
-function NameChip({ name, on, onPress }: { name: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      style={({ pressed }) => [styles.chip, on ? styles.chipOn : styles.chipOff, pressed && { opacity: 0.7 }]}
-    >
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>{name}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.ground },
   flex1: { flex: 1 },
@@ -721,17 +708,6 @@ const styles = StyleSheet.create({
   unitResult: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.stamp, textTransform: 'uppercase' },
   unitResultWarn: { fontFamily: fonts.monoBold, fontSize: 12, color: colors.warn, textTransform: 'uppercase' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 44, paddingHorizontal: 14, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderWidth: 1.5, borderColor: colors.ink },
-  chipOff: { backgroundColor: colors.paper, borderWidth: 1.5, borderColor: colors.faint, borderStyle: 'dashed' },
-  chipText: {
-    fontFamily: fonts.monoBold,
-    fontSize: 13,
-    letterSpacing: 1,
-    color: colors.ink,
-    textTransform: 'uppercase',
-  },
-  chipTextOn: { color: colors.paper },
   statusRow: { flexDirection: 'row', minHeight: 32, alignItems: 'center' },
   warnLabel: {
     fontFamily: fonts.monoBold,

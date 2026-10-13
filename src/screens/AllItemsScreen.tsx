@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Column, DashedRule, PaperButton, TornEdge } from '../components/paper';
+import { Column, DashedRule, NameChip as Chip, PaperButton, Stepper, TornEdge } from '../components/paper';
 import ReceiptPhoto from '../components/ReceiptPhoto';
 import ReceiptView, { AllAssignedStamp, TotalLine } from '../components/ReceiptView';
 import { useBill } from '../context/BillContext';
@@ -338,7 +338,7 @@ function LineEditor({
                   keyboardType="decimal-pad"
                   accessibilityLabel={quantity > 1 ? 'Price each' : 'Price'}
                 />
-                <Stepper value={quantity} onChange={changeQuantity} label="Quantity" />
+                <Stepper value={quantity} onChange={changeQuantity} label="Quantity" max={MAX_QTY} />
               </View>
               {priceWarning && <Text style={styles.danger}>{priceWarning}</Text>}
 
@@ -438,63 +438,9 @@ function LineEditor({
   );
 }
 
-function Chip({ name, on, onPress }: { name: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      style={({ pressed }) => [styles.chip, on ? styles.chipOn : styles.chipOff, pressed && { opacity: 0.7 }]}
-    >
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>{name}</Text>
-    </Pressable>
-  );
-}
-
-function Stepper({
-  value,
-  onChange,
-  label,
-  min = 1,
-  max = MAX_QTY,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-  label: string;
-  min?: number;
-  max?: number;
-}) {
-  return (
-    <View style={styles.stepper}>
-      <Pressable
-        onPress={() => onChange(value - 1)}
-        disabled={value <= min}
-        accessibilityRole="button"
-        accessibilityLabel={`${label}: one fewer`}
-        style={[styles.stepBtn, value <= min && styles.dim]}
-      >
-        <Text style={styles.stepText}>−</Text>
-      </Pressable>
-      <Text style={styles.stepValue} accessibilityLabel={`${label}: ${value}`}>
-        {value}
-      </Text>
-      <Pressable
-        onPress={() => onChange(value + 1)}
-        disabled={value >= max}
-        accessibilityRole="button"
-        accessibilityLabel={`${label}: one more`}
-        style={[styles.stepBtn, value >= max && styles.dim]}
-      >
-        <Text style={styles.stepText}>+</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.ground },
   flex0: { flex: 1 },
-  dim: { opacity: 0.35 },
   scroll: { padding: 20, paddingTop: 8 },
   stack: { gap: 12 },
   headerLink: {
@@ -560,17 +506,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 44, paddingHorizontal: 14, justifyContent: 'center' },
-  chipOn: { backgroundColor: colors.ink, borderWidth: 1.5, borderColor: colors.ink },
-  chipOff: { backgroundColor: colors.paper, borderWidth: 1.5, borderColor: colors.faint, borderStyle: 'dashed' },
-  chipText: {
-    fontFamily: fonts.monoBold,
-    fontSize: 13,
-    letterSpacing: 1,
-    color: colors.ink,
-    textTransform: 'uppercase',
-  },
-  chipTextOn: { color: colors.paper },
   countRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   countName: {
     fontFamily: fonts.monoBold,
@@ -580,10 +515,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   unitBlock: { gap: 8 },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: colors.ink },
-  stepBtn: { width: 44, height: 45, alignItems: 'center', justifyContent: 'center' },
-  stepText: { fontFamily: fonts.monoBold, fontSize: 20, color: colors.ink },
-  stepValue: { fontFamily: fonts.monoBold, fontSize: 16, color: colors.ink, minWidth: 24, textAlign: 'center' },
   ok: { fontFamily: fonts.monoBold, fontSize: 13, color: colors.stamp, textTransform: 'uppercase' },
   warnText: { fontFamily: fonts.monoBold, fontSize: 13, color: colors.warn, textTransform: 'uppercase' },
 });

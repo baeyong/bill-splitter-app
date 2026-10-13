@@ -195,6 +195,61 @@ export function Column({
   return <View style={[styles.column, style]}>{children}</View>;
 }
 
+/** A name you tap to include someone: solid when picked, dashed when not. */
+export function NameChip({ name, on, onPress }: { name: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      style={({ pressed }) => [styles.chip, on ? styles.chipOn : styles.chipOff, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={[styles.chipText, on && styles.chipTextOn]}>{name}</Text>
+    </Pressable>
+  );
+}
+
+/** − n + in a box. */
+export function Stepper({
+  value,
+  onChange,
+  label,
+  min = 1,
+  max = 20,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  label: string;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <View style={styles.stepper}>
+      <Pressable
+        onPress={() => onChange(value - 1)}
+        disabled={value <= min}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: one fewer`}
+        style={[styles.stepBtn, value <= min && styles.dim]}
+      >
+        <Text style={styles.stepText}>−</Text>
+      </Pressable>
+      <Text style={styles.stepValue} accessibilityLabel={`${label}: ${value}`}>
+        {value}
+      </Text>
+      <Pressable
+        onPress={() => onChange(value + 1)}
+        disabled={value >= max}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: one more`}
+        style={[styles.stepBtn, value >= max && styles.dim]}
+      >
+        <Text style={styles.stepText}>+</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   paper: {
     backgroundColor: colors.paper,
@@ -236,5 +291,38 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   column: { width: '100%', maxWidth: MAX_COLUMN_WIDTH, alignSelf: 'center' },
+  chip: { height: 44, paddingHorizontal: 14, justifyContent: 'center' },
+  chipOn: { backgroundColor: colors.ink, borderWidth: 1.5, borderColor: colors.ink },
+  chipOff: {
+    backgroundColor: colors.paper,
+    borderWidth: 1.5,
+    borderColor: colors.faint,
+    borderStyle: 'dashed',
+  },
+  chipText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
+  chipTextOn: { color: colors.paper },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+  },
+  stepBtn: { width: 44, height: 45, alignItems: 'center', justifyContent: 'center' },
+  stepText: { fontFamily: fonts.monoBold, fontSize: 20, color: colors.ink },
+  stepValue: {
+    fontFamily: fonts.monoBold,
+    fontSize: 16,
+    color: colors.ink,
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  dim: { opacity: 0.35 },
 });
 

@@ -3,14 +3,16 @@ import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
+  View,
 } from 'react-native';
-import { View } from 'react-native';
+import { Column, DashedRule, Paper, PaperButton } from '../components/paper';
 import { useBill } from '../context/BillContext';
+import { colors, fonts, text } from '../theme';
 import { getStateByCode, STATE_TAX_RATES } from '../data/stateTaxRates';
 import { parseAmount } from '../utils/money';
 import { ScreenProps } from '../types/navigation';
@@ -45,111 +47,119 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
     if (isNaN(n)) setTaxInput(String(savedTax.taxRatePercent));
   };
 
+  const done = () => {
+    commitTax();
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Home');
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
+        style={styles.flex}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text style={styles.sectionLabel}>State</Text>
-        <View style={styles.pickerWrap}>
-          <Picker
-            selectedValue={savedTax.stateCode}
-            onValueChange={(code) => {
-              setStateCode(code);
-              const rate = STATE_TAX_RATES.find((s) => s.code === code)?.rate ?? 0;
-              setTaxInput(String(rate));
-            }}
-          >
-            {STATE_TAX_RATES.map((s) => (
-              <Picker.Item key={s.code} label={`${s.name} (${s.rate}%)`} value={s.code} />
-            ))}
-          </Picker>
-        </View>
+        <Column style={styles.stack}>
+          <Paper style={styles.card}>
+            <Text style={text.label}>Default tax for new bills</Text>
 
-        <Text style={styles.sectionLabel}>Tax rate (%)</Text>
-        <Text style={styles.hint}>
-          Prefilled with the typical combined rate (state + local) for each state's main metro.
-          Override if you're outside that area.
-        </Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={taxInput}
-          onChangeText={onTaxChange}
-          onBlur={commitTax}
-          placeholder="7.25"
-        />
-        {isCustom && stateInfo && (
-          <View style={styles.customRow}>
-            <Text style={styles.customText}>
-              Custom rate · {stateInfo.name} is {stateInfo.rate}%
+            <Text style={styles.fieldLabel}>State</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={savedTax.stateCode}
+                onValueChange={(code) => {
+                  setStateCode(code);
+                  const rate = STATE_TAX_RATES.find((st) => st.code === code)?.rate ?? 0;
+                  setTaxInput(String(rate));
+                }}
+                itemStyle={styles.pickerItem}
+              >
+                {STATE_TAX_RATES.map((st) => (
+                  <Picker.Item key={st.code} label={`${st.name} (${st.rate}%)`} value={st.code} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.fieldLabel}>Tax rate (%)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="decimal-pad"
+              value={taxInput}
+              onChangeText={onTaxChange}
+              onBlur={commitTax}
+              placeholder="7.25"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Tax rate percent"
+            />
+            {isCustom && stateInfo && (
+              <View style={styles.customRow}>
+                <Text style={[text.hint, styles.customText]}>
+                  Custom rate · {stateInfo.name} is {stateInfo.rate}%
+                </Text>
+                <Pressable onPress={resetToStateRate} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.smallLink}>Reset</Text>
+                </Pressable>
+              </View>
+            )}
+            <Text style={text.hint}>
+              Prefilled with the typical rate (state + local) for each state's main city. Change it
+              if you're outside that area.
             </Text>
-            <TouchableOpacity
-              onPress={resetToStateRate}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.resetLink}>Reset</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            <DashedRule />
+            <Text style={text.hint}>
+              Tip is set on each bill's Summary, since you usually pick it after the meal.
+            </Text>
+          </Paper>
 
-        <Text style={styles.hint}>
-          Tip is set per-bill on the Summary screen, since you usually pick it after the meal.
-        </Text>
+          <Paper style={styles.card}>
+            <Text style={text.label}>About scanning</Text>
+            <Text style={text.hint}>
+              Receipt photos are sent to Anthropic's Claude API to be read. Nothing else leaves your
+              phone.
+            </Text>
+          </Paper>
 
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => {
-            commitTax();
-            if (navigation.canGoBack()) navigation.goBack();
-            else navigation.navigate('Home');
-          }}
-        >
-          <Text style={styles.primaryBtnText}>Done</Text>
-        </TouchableOpacity>
+          <PaperButton title="Done" onPress={done} />
+        </Column>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 20, paddingBottom: 40 },
-  sectionLabel: { fontSize: 16, fontWeight: '600', marginTop: 20, marginBottom: 6 },
-  hint: { fontSize: 13, color: '#777', marginTop: 8, marginBottom: 8 },
-  pickerWrap: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    overflow: 'hidden',
+  flex: { flex: 1, backgroundColor: colors.ground },
+  container: { padding: 20, paddingTop: 8, paddingBottom: 40 },
+  stack: { gap: 14 },
+  card: { gap: 10 },
+  fieldLabel: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
+    marginTop: 4,
   },
-  customRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  customText: { fontSize: 13, color: '#7A5C00' },
-  resetLink: { fontSize: 14, color: '#3AB795', fontWeight: '600' },
+  pickerWrap: { borderWidth: 1.5, borderColor: colors.ink, overflow: 'hidden' },
+  pickerItem: { fontFamily: fonts.sans, fontSize: 17, color: colors.ink },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
+    height: 50,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    paddingHorizontal: 14,
+    fontFamily: fonts.monoBold,
+    fontSize: 18,
+    color: colors.ink,
+    backgroundColor: colors.paper,
   },
-  primaryBtn: {
-    marginTop: 30,
-    backgroundColor: '#3AB795',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
+  customRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  customText: { color: colors.warn, flex: 1 },
+  smallLink: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    color: colors.ink,
+    textDecorationLine: 'underline',
+    textTransform: 'uppercase',
   },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
