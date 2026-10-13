@@ -1,13 +1,10 @@
+import { Feather } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
+import { Column, Leader, Paper } from '../components/paper';
 import { useReceipts } from '../context/ReceiptsContext';
+import { calendarTheme, colors, fonts, text } from '../theme';
 import { SavedReceipt } from '../types/bill';
 import { ScreenProps } from '../types/navigation';
 
@@ -28,14 +25,17 @@ const ymOfTs = (ts: number) => {
   return d.getFullYear() * 12 + d.getMonth();
 };
 
-const formatTime = (ts: number) => {
-  const d = new Date(ts);
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+const formatDay = (ts: number) =>
+  new Date(ts)
+    .toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })
+    .replace(/,/g, '');
+
+const formatTime = (ts: number) =>
+  new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+const dayLabel = (ymdString: string) => {
+  const [y, m, d] = ymdString.split('-').map(Number);
+  return formatDay(new Date(y, m - 1, d).getTime());
 };
 
 const userShareOf = (r: SavedReceipt): number => {
@@ -73,13 +73,13 @@ export default function ReceiptsScreen({ navigation }: ScreenProps<'Receipts'>) 
     const out: Record<string, { marked: boolean; dotColor: string; selected?: boolean; selectedColor?: string }> = {};
     monthReceipts.forEach((r) => {
       const key = ymdFromTs(r.createdAt);
-      out[key] = { marked: true, dotColor: '#3AB795' };
+      out[key] = { marked: true, dotColor: colors.stamp };
     });
     if (selectedDay) {
       out[selectedDay] = {
-        ...(out[selectedDay] ?? { marked: false, dotColor: '#3AB795' }),
+        ...(out[selectedDay] ?? { marked: false, dotColor: colors.stamp }),
         selected: true,
-        selectedColor: '#3AB795',
+        selectedColor: colors.ink,
       };
     }
     return out;
@@ -123,165 +123,179 @@ export default function ReceiptsScreen({ navigation }: ScreenProps<'Receipts'>) 
 
   const calendarKey = `${year}-${pad2(month + 1)}-01`;
 
+  const monthTitle = `${MONTH_NAMES[month]} ${year}`;
+
+  const monthNav = (
+    <View style={styles.monthNav}>
+      <Pressable
+        onPress={goPrevMonth}
+        accessibilityRole="button"
+        accessibilityLabel="Previous month"
+        style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
+      >
+        <Feather name="chevron-left" size={20} color={colors.ink} />
+      </Pressable>
+      <Text style={styles.monthLabel} accessibilityRole="header">
+        {monthTitle}
+      </Text>
+      <Pressable
+        onPress={goNextMonth}
+        accessibilityRole="button"
+        accessibilityLabel="Next month"
+        style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.6 }]}
+      >
+        <Feather name="chevron-right" size={20} color={colors.ink} />
+      </Pressable>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
-      <View style={styles.monthNav}>
-        <TouchableOpacity onPress={goPrevMonth} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
-          <Text style={styles.navArrow}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.monthLabel}>
-          {MONTH_NAMES[month]} {year}
-        </Text>
-        <TouchableOpacity onPress={goNextMonth} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
-          <Text style={styles.navArrow}>›</Text>
-        </TouchableOpacity>
-      </View>
+      <Column style={styles.stack}>
+        {mode === 'list' && monthNav}
 
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Your spend this month</Text>
-        <Text style={styles.totalValue}>${monthlyUserTotal.toFixed(2)}</Text>
-        <Text style={styles.totalSub}>
-          {monthReceipts.length} receipt{monthReceipts.length === 1 ? '' : 's'}
-        </Text>
-      </View>
-
-      <View style={styles.modeRow}>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === 'list' && styles.modeBtnOn]}
-          onPress={() => setMode('list')}
-        >
-          <Text style={[styles.modeText, mode === 'list' && styles.modeTextOn]}>List</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeBtn, mode === 'calendar' && styles.modeBtnOn]}
-          onPress={() => setMode('calendar')}
-        >
-          <Text style={[styles.modeText, mode === 'calendar' && styles.modeTextOn]}>Calendar</Text>
-        </TouchableOpacity>
-      </View>
-
-      {mode === 'calendar' && (
-        <View style={styles.calendarWrap}>
-          <Calendar
-            key={calendarKey}
-            current={calendarKey}
-            markedDates={markedDates}
-            onDayPress={onDayPress}
-            onMonthChange={onCalendarMonthChange}
-            theme={{
-              todayTextColor: '#3AB795',
-              arrowColor: '#3AB795',
-              selectedDayBackgroundColor: '#3AB795',
-              selectedDayTextColor: '#fff',
-              dotColor: '#3AB795',
-            }}
+        <Paper style={styles.totalCard}>
+          <Leader
+            label={`Your spend · ${MONTH_NAMES[month].slice(0, 3)}`}
+            value={monthlyUserTotal.toFixed(2)}
+            size="lg"
+            bold
           />
-          {selectedDay && (
-            <Text style={styles.filterHint}>
-              Showing {selectedDay} · tap day again to clear
-            </Text>
-          )}
-        </View>
-      )}
+          <Text style={text.label}>
+            Across {monthReceipts.length} receipt{monthReceipts.length === 1 ? '' : 's'}
+          </Text>
+        </Paper>
 
-      {visibleReceipts.length === 0 ? (
-        <Text style={styles.empty}>
-          {receipts.length === 0
-            ? 'No saved receipts yet. Save one from the Summary screen.'
-            : 'No receipts for this view.'}
-        </Text>
-      ) : (
-        visibleReceipts.map((r) => {
-          const share = userShareOf(r);
-          return (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.receiptCard}
-              onPress={() => navigation.navigate('ReceiptDetail', { receiptId: r.id })}
-            >
-              <View style={styles.receiptHeader}>
-                <Text style={styles.receiptTitle}>
-                  {r.restaurantName?.trim() || 'Untitled receipt'}
-                </Text>
-                <Text style={styles.receiptTotal}>${r.grandTotal.toFixed(2)}</Text>
-              </View>
-              <Text style={styles.receiptMeta}>{formatTime(r.createdAt)}</Text>
-              {r.ownerPersonId ? (
-                <Text style={styles.receiptShare}>Your share: ${share.toFixed(2)}</Text>
-              ) : (
-                <Text style={styles.receiptShareDim}>You weren't tagged on this one</Text>
-              )}
-              {r.notes ? <Text style={styles.receiptNotes}>{r.notes}</Text> : null}
-            </TouchableOpacity>
-          );
-        })
-      )}
+        <View style={styles.segment}>
+          {(['list', 'calendar'] as const).map((m) => {
+            const on = mode === m;
+            return (
+              <Pressable
+                key={m}
+                onPress={() => setMode(m)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={[styles.segmentBtn, on && styles.segmentBtnOn]}
+              >
+                <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{m}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {mode === 'calendar' && (
+          <Paper style={styles.calendarCard}>
+            <Calendar
+              key={calendarKey}
+              current={calendarKey}
+              markedDates={markedDates}
+              onDayPress={onDayPress}
+              onMonthChange={onCalendarMonthChange}
+              theme={calendarTheme}
+            />
+          </Paper>
+        )}
+
+        {mode === 'calendar' && selectedDay && (
+          <View style={styles.dayRow}>
+            <Text style={text.label}>{dayLabel(selectedDay)}</Text>
+            <Pressable onPress={() => setSelectedDay(null)} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.smallLink}>Show whole month</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {visibleReceipts.length === 0 ? (
+          <Text style={[text.hint, styles.empty]}>
+            {mode === 'calendar' && selectedDay
+              ? 'No receipts that day.'
+              : `No receipts in ${monthTitle}.`}
+          </Text>
+        ) : (
+          visibleReceipts.map((r) => {
+            const share = userShareOf(r);
+            return (
+              <Pressable
+                key={r.id}
+                onPress={() => navigation.navigate('ReceiptDetail', { receiptId: r.id })}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.slip, pressed && { opacity: 0.7 }]}
+              >
+                <Leader
+                  label={r.restaurantName?.trim() || 'Untitled receipt'}
+                  value={r.ownerPersonId ? share.toFixed(2) : r.grandTotal.toFixed(2)}
+                  bold
+                />
+                <View style={styles.slipMeta}>
+                  <Text style={text.label}>
+                    {mode === 'calendar' && selectedDay ? formatTime(r.createdAt) : formatDay(r.createdAt)}
+                  </Text>
+                  <Text style={text.label}>
+                    {r.ownerPersonId ? `Your share of ${r.grandTotal.toFixed(2)}` : 'Total · not tagged'}
+                  </Text>
+                </View>
+                {r.notes ? (
+                  <Text style={text.hint} numberOfLines={2}>
+                    {r.notes}
+                  </Text>
+                ) : null}
+              </Pressable>
+            );
+          })
+        )}
+      </Column>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 16, paddingBottom: 40 },
-  monthNav: {
-    flexDirection: 'row',
+  flex: { flex: 1, backgroundColor: colors.ground },
+  container: { padding: 20, paddingTop: 8, paddingBottom: 40 },
+  stack: { gap: 12 },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  navBtn: {
+    width: 44,
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-    marginBottom: 8,
+    justifyContent: 'center',
   },
-  navArrow: { fontSize: 28, color: '#3AB795', paddingHorizontal: 12, fontWeight: '600' },
-  monthLabel: { fontSize: 18, fontWeight: '700', color: '#222' },
-  totalCard: {
-    backgroundColor: '#E8F7F1',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 12,
+  monthLabel: {
+    fontFamily: fonts.monoBold,
+    fontSize: 16,
+    letterSpacing: 2,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  totalLabel: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
-  totalValue: { fontSize: 28, fontWeight: '800', color: '#222', marginTop: 2 },
-  totalSub: { fontSize: 12, color: '#666', marginTop: 2 },
-  modeRow: { flexDirection: 'row', marginBottom: 12 },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    alignItems: 'center',
+  totalCard: { gap: 4, paddingVertical: 16 },
+  segment: { flexDirection: 'row', borderWidth: 1.5, borderColor: colors.ink },
+  segmentBtn: { flex: 1, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper },
+  segmentBtnOn: { backgroundColor: colors.ink },
+  segmentText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  modeBtnOn: { backgroundColor: '#3AB795', borderColor: '#3AB795' },
-  modeText: { fontSize: 15, color: '#333' },
-  modeTextOn: { color: '#fff', fontWeight: '600' },
-  calendarWrap: {
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  filterHint: {
+  segmentTextOn: { color: colors.paper },
+  calendarCard: { padding: 8 },
+  dayRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 32 },
+  smallLink: {
+    fontFamily: fonts.monoBold,
     fontSize: 12,
-    color: '#666',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#fafafa',
+    color: colors.ink,
+    textDecorationLine: 'underline',
+    textTransform: 'uppercase',
   },
-  empty: { color: '#999', textAlign: 'center', marginTop: 30, paddingHorizontal: 20 },
-  receiptCard: {
-    backgroundColor: '#fafafa',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
+  empty: { textAlign: 'center', paddingVertical: 24 },
+  slip: {
+    backgroundColor: colors.paper,
+    padding: 16,
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadow,
   },
-  receiptHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  receiptTitle: { fontSize: 16, fontWeight: '700', flex: 1, paddingRight: 8 },
-  receiptTotal: { fontSize: 16, fontWeight: '700', color: '#222' },
-  receiptMeta: { fontSize: 13, color: '#777', marginTop: 2 },
-  receiptShare: { fontSize: 14, color: '#3AB795', fontWeight: '600', marginTop: 6 },
-  receiptShareDim: { fontSize: 13, color: '#999', marginTop: 6, fontStyle: 'italic' },
-  receiptNotes: { fontSize: 13, color: '#555', marginTop: 6 },
+  slipMeta: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
 });
