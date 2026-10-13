@@ -93,3 +93,22 @@ export const text = {
     color: colors.ink,
   },
 } satisfies Record<string, TextStyle>;
+
+// Shared with the receipts calendar so both pickers look the same.
+export const calendarTheme = {
+  calendarBackground: colors.paper,
+  dayTextColor: colors.ink,
+  textDisabledColor: colors.faint,
+  monthTextColor: colors.ink,
+  arrowColor: colors.ink,
+  todayTextColor: colors.stamp,
+  selectedDayBackgroundColor: colors.ink,
+  selectedDayTextColor: colors.paper,
+  dotColor: colors.stamp,
+  selectedDotColor: colors.paper,
+  textSectionTitleColor: colors.muted,
+  textDayFontFamily: fonts.mono,
+  textMonthFontFamily: fonts.monoBold,
+  textDayHeaderFontFamily: fonts.mono,
+  textMonthFontSize: 15,
+};

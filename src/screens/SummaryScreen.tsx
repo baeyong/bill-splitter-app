@@ -1,30 +1,61 @@
 import { usePreventRemove } from '@react-navigation/native';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
+import { Column, DashedRule, Leader, Paper, PaperButton, Stamp } from '../components/paper';
 import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
-import { ScreenProps } from '../types/navigation';
 import { getStateByCode } from '../data/stateTaxRates';
-import { calculateBreakdown } from '../utils/calculate';
+import { calendarTheme, colors, fonts, text } from '../theme';
+import { Bill } from '../types/bill';
+import { ScreenProps } from '../types/navigation';
+import { calculateBreakdown, round2 } from '../utils/calculate';
 import { parseAmount } from '../utils/money';
+
+/** iPads in landscape (and big ones in portrait) get the two-column layout. */
+const WIDE_LAYOUT = 900;
+const MATCH_TOLERANCE = 0.02;
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const ymdLocal = (d: Date) =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const formatPickerLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+
+/** "Coke × 2 · Burger · Fries × 2 (1/3)" — what one person had, briefly. */
+const itemsSummary = (bill: Bill, personId: string): string => {
+  const counts = new Map<string, { label: string; n: number }>();
+  const bump = (key: string, label: string) => {
+    const c = counts.get(key);
+    if (c) c.n += 1;
+    else counts.set(key, { label, n: 1 });
+  };
+  for (const item of bill.people.find((p) => p.id === personId)?.items ?? []) {
+    bump(`o:${item.name.trim().toLowerCase()}`, item.name.trim());
+  }
+  for (const s of bill.sharedItems) {
+    if (!s.personIds.includes(personId)) continue;
+    bump(`s:${s.name.trim().toLowerCase()}:${s.personIds.length}`, `${s.name.trim()}|1/${s.personIds.length}`);
+  }
+  return [...counts.values()]
+    .map(({ label, n }) => {
+      const [name, share] = label.split('|');
+      return `${name}${n > 1 ? ` × ${n}` : ''}${share ? ` (${share})` : ''}`;
+    })
+    .join(' · ');
+};
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   const { bill, savedTax, resetBill, editingReceiptId, setTipMode, setTipValue, setBillTax } =
@@ -71,6 +102,23 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
   };
 
   const isEditing = editingReceiptId !== null;
+  const { width } = useWindowDimensions();
+  const wide = width >= WIDE_LAYOUT;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => navigation.navigate('AllItems')}
+          accessibilityRole="button"
+          hitSlop={8}
+          style={({ pressed }) => pressed && { opacity: 0.6 }}
+        >
+          <Text style={styles.headerLink}>All items</Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation]);
   const editingReceipt = useMemo(
     () => (editingReceiptId ? receipts.find((r) => r.id === editingReceiptId) ?? null : null),
     [receipts, editingReceiptId],
@@ -88,7 +136,8 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     !isNaN(expectedNum) && expectedNum >= 0 ? result.grandTotal - expectedNum : null;
   const matches = diff !== null && Math.abs(diff) < 0.01;
 
-  const [restaurant, setRestaurant] = useState('');
+  // A scan already knows the restaurant; edit mode overwrites this below.
+  const [restaurant, setRestaurant] = useState(() => bill.scan?.restaurantName ?? '');
   const [notes, setNotes] = useState('');
   const [ownerPersonId, setOwnerPersonId] = useState<string | undefined>(undefined);
   const [receiptDate, setReceiptDate] = useState<Date>(() => new Date());
@@ -212,442 +261,420 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
     });
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-    <ScrollView
-      style={styles.flex}
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-    >
-      {isEditing && (
-        <View style={styles.editBanner}>
-          <Text style={styles.editBannerText}>
-            ✎ Editing receipt
-            {editingReceipt?.restaurantName ? ` · ${editingReceipt.restaurantName}` : ''}
-          </Text>
-        </View>
-      )}
+  // With a scanned total we can check automatically. A receipt with no tip
+  // written on it prints a pre-tip total, so compare like with like.
+  const printedTotal = bill.scan?.total;
+  const ourComparable =
+    printedTotal === undefined
+      ? null
+      : bill.scan?.tip === undefined
+        ? round2(result.grandSubtotal + result.grandTax)
+        : result.grandTotal;
+  const scanMatches =
+    printedTotal !== undefined &&
+    ourComparable !== null &&
+    Math.abs(ourComparable - printedTotal) < MATCH_TOLERANCE;
 
-      <View style={styles.settingsRow}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AllItems')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.reviewLink}>Review all items ›</Text>
-        </TouchableOpacity>
-      </View>
+  const guests = bill.people.length;
+  const dateLabel = receiptDate
+    .toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    .replace(/,/g, '');
 
-      <View style={[styles.tipBlock, styles.taxBlock]}>
-        <Text style={styles.tipLabel}>Tax</Text>
-        <View style={styles.tipModeToggle}>
-          {(['percent', 'amount'] as const).map((mode) => (
-            <TouchableOpacity
-              key={mode}
-              style={[styles.tipModeBtn, taxMode === mode && styles.tipModeBtnOn]}
-              onPress={() => switchTaxMode(mode)}
-            >
-              <Text style={[styles.tipModeBtnText, taxMode === mode && styles.tipModeBtnTextOn]}>
-                {mode === 'percent' ? '%' : '$'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+  const modeToggle = (
+    current: 'percent' | 'amount',
+    onPick: (m: 'percent' | 'amount') => void,
+    what: string,
+  ) => (
+    <View style={styles.toggle}>
+      {(['percent', 'amount'] as const).map((m) => {
+        const on = current === m;
+        return (
+          <Pressable
+            key={m}
+            onPress={() => onPick(m)}
+            accessibilityRole="button"
+            accessibilityLabel={`${what} as ${m === 'percent' ? 'a percentage' : 'a dollar amount'}`}
+            accessibilityState={{ selected: on }}
+            style={[styles.toggleBtn, on && styles.toggleBtnOn]}
+          >
+            <Text style={[styles.toggleText, on && styles.toggleTextOn]}>{m === 'percent' ? '%' : '$'}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const editBanner = isEditing && (
+    <Stamp
+      label={`Editing${editingReceipt?.restaurantName ? ` · ${editingReceipt.restaurantName}` : ''}`}
+      rotate={-2}
+      color={colors.warn}
+    />
+  );
+
+  const taxTipCard = (
+    <Paper style={styles.card}>
+      <View style={styles.controlRow}>
+        <Text style={styles.controlLabel}>Tax</Text>
+        {modeToggle(taxMode, switchTaxMode, 'Tax')}
         <TextInput
-          style={styles.tipInput}
+          style={styles.controlInput}
           keyboardType="decimal-pad"
           value={taxInput}
           onChangeText={onTaxChange}
           placeholder={taxMode === 'percent' ? String(savedTax.taxRatePercent) : '0.00'}
+          placeholderTextColor={colors.muted}
+          accessibilityLabel={taxMode === 'percent' ? 'Tax percent' : 'Tax amount'}
         />
       </View>
       {(fromReceipt || !onSavedRate) && (
-        <View style={styles.taxNoteRow}>
-          <Text style={styles.taxNote}>
+        <View style={styles.taxNote}>
+          <Text style={[text.hint, styles.flex1]}>
             {fromReceipt ? 'From the receipt · this bill only' : 'This bill only'}
           </Text>
-          <TouchableOpacity onPress={revertToSavedRate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.reviewLink}>
-              Use {savedState?.code ?? savedTax.stateCode} {savedTax.taxRatePercent}% instead
+          <Pressable onPress={revertToSavedRate} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.smallLink}>
+              Use {savedState?.code ?? savedTax.stateCode} {savedTax.taxRatePercent}%
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
-
-      <View style={styles.tipBlock}>
-        <Text style={styles.tipLabel}>Tip</Text>
-        <View style={styles.tipModeToggle}>
-          <TouchableOpacity
-            style={[styles.tipModeBtn, bill.tipMode === 'percent' && styles.tipModeBtnOn]}
-            onPress={() => setTipMode('percent')}
-          >
-            <Text
-              style={[
-                styles.tipModeBtnText,
-                bill.tipMode === 'percent' && styles.tipModeBtnTextOn,
-              ]}
-            >
-              %
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tipModeBtn, bill.tipMode === 'amount' && styles.tipModeBtnOn]}
-            onPress={() => setTipMode('amount')}
-          >
-            <Text
-              style={[
-                styles.tipModeBtnText,
-                bill.tipMode === 'amount' && styles.tipModeBtnTextOn,
-              ]}
-            >
-              $
-            </Text>
-          </TouchableOpacity>
-        </View>
+      <DashedRule />
+      <View style={styles.controlRow}>
+        <Text style={styles.controlLabel}>Tip</Text>
+        {modeToggle(bill.tipMode, setTipMode, 'Tip')}
         <TextInput
-          style={styles.tipInput}
+          style={styles.controlInput}
           keyboardType="decimal-pad"
           value={tipInput}
           onChangeText={onTipChange}
           placeholder={bill.tipMode === 'percent' ? '18' : '10.00'}
+          placeholderTextColor={colors.muted}
+          accessibilityLabel={bill.tipMode === 'percent' ? 'Tip percent' : 'Tip amount'}
         />
       </View>
+    </Paper>
+  );
 
-      {result.rows.map((row) => {
-        const person = bill.people.find((p) => p.id === row.personId);
-        const sharedForPerson = bill.sharedItems.filter((s) => s.personIds.includes(row.personId));
-        return (
-          <TouchableOpacity
-            key={row.personId}
-            style={styles.card}
-            onPress={() => navigation.navigate('PersonItems', { personId: row.personId })}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardName}>{row.name}</Text>
-              <Text style={styles.cardTotal}>${row.total.toFixed(2)}</Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Items</Text>
-              <Text style={styles.breakdownValue}>${row.ownItemsTotal.toFixed(2)}</Text>
-            </View>
-            {row.sharedShare > 0 && (
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Items shared</Text>
-                <Text style={styles.breakdownValue}>${row.sharedShare.toFixed(2)}</Text>
-              </View>
-            )}
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Subtotal</Text>
-              <Text style={styles.breakdownValue}>${row.subtotal.toFixed(2)}</Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>
-                {taxMode === 'percent' ? `Tax (${bill.taxRatePercent}%)` : 'Tax'}
+  const receiptCard = (
+    <Paper style={[styles.card, styles.receipt]}>
+      <View style={styles.receiptHead}>
+        <Text style={styles.receiptTitle}>{restaurant.trim() || 'This bill'}</Text>
+        <Text style={text.label}>
+          {dateLabel} · {guests} {guests === 1 ? 'guest' : 'guests'}
+        </Text>
+      </View>
+      <DashedRule />
+      {result.rows.map((row) => (
+        <Pressable
+          key={row.personId}
+          onPress={() => navigation.navigate('PersonItems', { personId: row.personId })}
+          accessibilityRole="button"
+          accessibilityHint="Edit their items"
+          style={({ pressed }) => [styles.personBlock, pressed && { opacity: 0.6 }]}
+        >
+          <Leader label={row.name} value={row.total.toFixed(2)} size="lg" bold />
+          {itemsSummary(bill, row.personId) !== '' && (
+            <Text style={text.hint}>{itemsSummary(bill, row.personId)}</Text>
+          )}
+          <Text style={styles.breakdown}>
+            Items {row.subtotal.toFixed(2)} + tax {row.tax.toFixed(2)} + tip {row.tip.toFixed(2)}
+          </Text>
+        </Pressable>
+      ))}
+      <DashedRule />
+      <View style={styles.totals}>
+        <Leader label="Subtotal" value={result.grandSubtotal.toFixed(2)} size="sm" />
+        <Leader
+          label={taxMode === 'percent' ? `Tax ${bill.taxRatePercent}%` : 'Tax'}
+          value={result.grandTax.toFixed(2)}
+          size="sm"
+        />
+        <Leader
+          label={bill.tipMode === 'percent' ? `Tip ${bill.tipValue}%` : 'Tip'}
+          value={result.grandTip.toFixed(2)}
+          size="sm"
+        />
+        <Leader label="Total" value={result.grandTotal.toFixed(2)} size="xl" bold style={styles.grand} />
+      </View>
+      {printedTotal !== undefined ? (
+        scanMatches ? (
+          <Stamp label="Matches receipt ✓" rotate={-6} size={14} style={styles.matchStamp} />
+        ) : (
+          <Text style={styles.offText}>
+            Receipt says {printedTotal.toFixed(2)}
+            {bill.scan?.tip === undefined ? ' before tip' : ''} · off by{' '}
+            {Math.abs((ourComparable ?? 0) - printedTotal).toFixed(2)}
+          </Text>
+        )
+      ) : (
+        <View style={styles.verify}>
+          <Text style={text.label}>Receipt total (to check)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="decimal-pad"
+            value={expected}
+            onChangeText={setExpected}
+            placeholder="e.g. 124.50"
+            placeholderTextColor={colors.muted}
+            accessibilityLabel="Receipt total to check against"
+          />
+          {diff !== null &&
+            (matches ? (
+              <Stamp label="Matches receipt ✓" rotate={-4} size={13} />
+            ) : (
+              <Text style={styles.offText}>
+                Off by {Math.abs(diff).toFixed(2)} ({diff > 0 ? 'ours is higher' : 'ours is lower'})
               </Text>
-              <Text style={styles.breakdownValue}>${row.tax.toFixed(2)}</Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Tip</Text>
-              <Text style={styles.breakdownValue}>${row.tip.toFixed(2)}</Text>
-            </View>
-            {((person && person.items.length > 0) || sharedForPerson.length > 0) && (
-              <View style={styles.itemsList}>
-                {person?.items.map((it) => (
-                  <View key={it.id} style={styles.itemLineRow}>
-                    <Text style={styles.itemLineName} numberOfLines={1}>
-                      • {it.name}
-                    </Text>
-                    <Text style={styles.itemLinePrice}>${it.price.toFixed(2)}</Text>
-                  </View>
-                ))}
-                {sharedForPerson.map((s) => (
-                  <View key={s.id} style={styles.itemLineRow}>
-                    <Text style={styles.itemLineName} numberOfLines={1}>
-                      • {s.name}{' '}
-                      <Text style={styles.itemLineShared}>(shared 1/{s.personIds.length})</Text>
-                    </Text>
-                    <Text style={styles.itemLinePrice}>
-                      ${(s.totalPrice / s.personIds.length).toFixed(2)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            <Text style={styles.tapHint}>
-              {person?.items.length ?? 0} item(s) · tap to edit
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+            ))}
+        </View>
+      )}
+    </Paper>
+  );
 
-      <View style={styles.totalsBlock}>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.totalsLabel}>Subtotal</Text>
-          <Text style={styles.totalsValue}>${result.grandSubtotal.toFixed(2)}</Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.totalsLabel}>Tax</Text>
-          <Text style={styles.totalsValue}>${result.grandTax.toFixed(2)}</Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.totalsLabel}>Tip</Text>
-          <Text style={styles.totalsValue}>${result.grandTip.toFixed(2)}</Text>
-        </View>
-        <View style={[styles.breakdownRow, styles.grandRow]}>
-          <Text style={styles.grandLabel}>Grand total</Text>
-          <Text style={styles.grandValue}>${result.grandTotal.toFixed(2)}</Text>
-        </View>
-      </View>
-
-      <View style={styles.verifyBlock}>
-        <Text style={styles.verifyLabel}>Receipt total (to verify)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={expected}
-          onChangeText={setExpected}
-          placeholder="e.g. 124.50"
-        />
-        {diff !== null && (
-          <Text style={[styles.diffText, matches ? styles.diffOk : styles.diffBad]}>
-            {matches
-              ? '✓ Matches the receipt'
-              : `Off by $${diff.toFixed(2)} (${diff > 0 ? 'calculated higher' : 'calculated lower'})`}
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.saveBlock}>
-        <Text style={styles.saveTitle}>{isEditing ? 'Receipt details' : 'Save this receipt'}</Text>
-        {!isEditing && (
-          <Text style={styles.saveHint}>
-            Optional. Keeps a copy on this phone for later reference.
-          </Text>
-        )}
+  const saveCard = (
+    <Paper style={styles.card}>
+      <Text style={styles.cardTitle}>{isEditing ? 'Receipt details' : 'Save this receipt'}</Text>
+      {!isEditing && <Text style={text.hint}>Optional. Keeps a copy on this phone.</Text>}
+      <View style={styles.field}>
+        <Text style={text.label}>Restaurant</Text>
         <TextInput
           style={styles.input}
           value={restaurant}
           onChangeText={setRestaurant}
-          placeholder="Restaurant (optional)"
+          placeholder="Optional"
+          placeholderTextColor={colors.muted}
           autoCapitalize="words"
+          accessibilityLabel="Restaurant"
         />
+      </View>
+      <View style={styles.field}>
+        <Text style={text.label}>Notes</Text>
         <TextInput
-          style={[styles.input, styles.notesInput]}
+          style={[styles.input, styles.notes]}
           value={notes}
           onChangeText={setNotes}
-          placeholder="Notes (optional)"
+          placeholder="Optional"
+          placeholderTextColor={colors.muted}
           multiline
+          accessibilityLabel="Notes"
         />
-        <View style={styles.dateRow}>
-          <Text style={styles.dateLabel}>Date</Text>
-          <TouchableOpacity onPress={() => setDatePickerOpen(true)} style={styles.dateBtn}>
-            <Text style={styles.dateBtnText}>{formatPickerLabel(receiptDate)}</Text>
-            <Text style={styles.dateBtnChange}>Change</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.subLabel}>Which one was you?</Text>
-        <View style={styles.chipRow}>
-          {bill.people.map((p) => {
-            const on = ownerPersonId === p.id;
-            return (
-              <TouchableOpacity
-                key={p.id}
-                style={[styles.chip, on && styles.chipOn]}
-                onPress={() => setOwnerPersonId(on ? undefined : p.id)}
-              >
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>{p.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <TouchableOpacity style={styles.saveBtn} onPress={onSave}>
-          <Text style={styles.saveBtnText}>{isEditing ? 'Save changes' : 'Save receipt'}</Text>
-        </TouchableOpacity>
       </View>
+      <View style={styles.dateRow}>
+        <Text style={text.label}>Date</Text>
+        <Pressable
+          onPress={() => setDatePickerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Date, ${formatPickerLabel(receiptDate)}. Change`}
+          style={({ pressed }) => [styles.dateBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Text style={styles.dateText}>{dateLabel} · </Text>
+          <Text style={styles.smallLink}>Change</Text>
+        </Pressable>
+      </View>
+      <Text style={text.label}>Which one was you?</Text>
+      <View style={styles.chips}>
+        {bill.people.map((p) => {
+          const on = ownerPersonId === p.id;
+          return (
+            <Pressable
+              key={p.id}
+              onPress={() => setOwnerPersonId(on ? undefined : p.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={[styles.chip, on ? styles.chipOn : styles.chipOff]}
+            >
+              <Text style={[styles.chipText, on && styles.chipTextOn]}>{p.name}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <PaperButton title={isEditing ? 'Save changes' : 'Save receipt'} onPress={onSave} style={styles.saveBtn} />
+    </Paper>
+  );
 
-      {isEditing ? (
-        <TouchableOpacity style={styles.resetBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.resetBtnText}>Cancel edit</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
-          <Text style={styles.resetBtnText}>Start new bill</Text>
-        </TouchableOpacity>
-      )}
-    </ScrollView>
+  const resetButton = isEditing ? (
+    <PaperButton title="Cancel edit" variant="danger" compact onPress={() => navigation.goBack()} />
+  ) : (
+    <PaperButton title="Start new bill" variant="danger" compact onPress={confirmReset} />
+  );
 
-    <Modal
-      visible={datePickerOpen}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setDatePickerOpen(false)}
-    >
-      <TouchableOpacity
-        style={styles.modalBackdrop}
-        activeOpacity={1}
-        onPress={() => setDatePickerOpen(false)}
+  return (
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
-        <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
-          <Text style={styles.modalTitle}>Receipt date</Text>
-          <Calendar
-            current={ymdLocal(receiptDate)}
-            initialDate={ymdLocal(receiptDate)}
-            markedDates={{
-              [ymdLocal(receiptDate)]: { selected: true, selectedColor: '#3AB795' },
-            }}
-            onDayPress={(d: DateData) => {
-              setReceiptDate(new Date(d.year, d.month - 1, d.day));
-              setDatePickerOpen(false);
-            }}
-            theme={{
-              todayTextColor: '#3AB795',
-              arrowColor: '#3AB795',
-              selectedDayBackgroundColor: '#3AB795',
-              selectedDayTextColor: '#fff',
-            }}
-          />
-          <TouchableOpacity
-            style={styles.modalTodayBtn}
-            onPress={() => {
-              setReceiptDate(new Date());
-              setDatePickerOpen(false);
-            }}
-          >
-            <Text style={styles.modalTodayBtnText}>Today</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
+        {wide ? (
+          <View style={styles.columns}>
+            <View style={styles.leftColumn}>
+              {editBanner}
+              {receiptCard}
+            </View>
+            <View style={styles.rightColumn}>
+              {taxTipCard}
+              {saveCard}
+              {resetButton}
+            </View>
+          </View>
+        ) : (
+          <Column style={styles.stack}>
+            {editBanner}
+            {taxTipCard}
+            {receiptCard}
+            {saveCard}
+            {resetButton}
+          </Column>
+        )}
+      </ScrollView>
+
+      <Modal
+        visible={datePickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDatePickerOpen(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setDatePickerOpen(false)}
+          accessibilityLabel="Close date picker"
+        >
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.cardTitle}>Receipt date</Text>
+            <Calendar
+              current={ymdLocal(receiptDate)}
+              initialDate={ymdLocal(receiptDate)}
+              markedDates={{
+                [ymdLocal(receiptDate)]: { selected: true, selectedColor: colors.ink },
+              }}
+              onDayPress={(d: DateData) => {
+                setReceiptDate(new Date(d.year, d.month - 1, d.day));
+                setDatePickerOpen(false);
+              }}
+              theme={calendarTheme}
+            />
+            <PaperButton
+              title="Today"
+              variant="outline"
+              compact
+              onPress={() => {
+                setReceiptDate(new Date());
+                setDatePickerOpen(false);
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 16, paddingBottom: 40 },
-  settingsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginBottom: 8,
+  flex: { flex: 1, backgroundColor: colors.ground },
+  flex1: { flex: 1 },
+  container: { padding: 20, paddingTop: 8, paddingBottom: 40 },
+  stack: { gap: 16 },
+  columns: { flexDirection: 'row', gap: 28, alignItems: 'flex-start' },
+  leftColumn: { flex: 1, gap: 16, minWidth: 0 },
+  rightColumn: { width: 380, gap: 16 },
+  headerLink: {
+    fontFamily: fonts.monoBold,
+    fontSize: 14,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  reviewLink: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
-  tipBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#F1F5F4',
-    borderRadius: 10,
+  card: { gap: 12 },
+  cardTitle: {
+    fontFamily: fonts.monoBold,
+    fontSize: 15,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  taxBlock: { marginBottom: 6 },
-  taxNoteRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
+  controlRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  controlLabel: {
+    width: 40,
+    fontFamily: fonts.monoBold,
+    fontSize: 14,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  taxNote: { fontSize: 12, color: '#777' },
-  tipLabel: { fontSize: 14, fontWeight: '700', color: '#444' },
-  tipModeToggle: {
-    flexDirection: 'row',
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#cfdcd6',
-  },
-  tipModeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-  },
-  tipModeBtnOn: { backgroundColor: '#3AB795' },
-  tipModeBtnText: { fontSize: 15, color: '#666', fontWeight: '600' },
-  tipModeBtnTextOn: { color: '#fff' },
-  tipInput: {
+  toggle: { flexDirection: 'row', borderWidth: 1.5, borderColor: colors.ink },
+  toggleBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper },
+  toggleBtnOn: { backgroundColor: colors.ink },
+  toggleText: { fontFamily: fonts.monoBold, fontSize: 15, color: colors.ink },
+  toggleTextOn: { color: colors.paper },
+  controlInput: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  editBanner: {
-    backgroundColor: '#FFF8E1',
-    borderColor: '#F2C94C',
-    borderWidth: 1,
-    paddingVertical: 8,
+    height: 47,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+    fontFamily: fonts.monoBold,
+    fontSize: 16,
+    color: colors.ink,
+    backgroundColor: colors.paper,
   },
-  editBannerText: { fontSize: 13, fontWeight: '600', color: '#7A5C00' },
-  card: {
-    backgroundColor: '#fafafa',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 12,
+  taxNote: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 50 },
+  smallLink: {
+    fontFamily: fonts.monoBold,
+    fontSize: 12,
+    color: colors.ink,
+    textDecorationLine: 'underline',
+    textTransform: 'uppercase',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  receipt: { paddingVertical: 22, gap: 14 },
+  receiptHead: { alignItems: 'center', gap: 4 },
+  receiptTitle: { ...text.title, textAlign: 'center' },
+  personBlock: { gap: 4 },
+  breakdown: { ...text.label, fontSize: 11, letterSpacing: 0.5 },
+  totals: { gap: 6 },
+  grand: { marginTop: 6 },
+  matchStamp: { alignSelf: 'flex-end' },
+  offText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    color: colors.warn,
+    textTransform: 'uppercase',
   },
-  // Shrinks/wraps instead of pushing the total off the card.
-  cardName: { flex: 1, marginRight: 8, fontSize: 17, fontWeight: '700' },
-  cardTotal: { fontSize: 18, fontWeight: '700', color: '#3AB795' },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 3,
+  verify: { gap: 8 },
+  field: { gap: 6 },
+  input: {
+    ...text.input,
+    height: 46,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    paddingHorizontal: 12,
+    backgroundColor: colors.paper,
   },
-  breakdownLabel: { fontSize: 14, color: '#555' },
-  breakdownValue: { fontSize: 14, color: '#333' },
-  tapHint: { fontSize: 12, color: '#999', marginTop: 6, fontStyle: 'italic' },
-  itemsList: {
-    marginTop: 8,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    gap: 2,
-  },
-  itemLineRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  itemLineName: { flex: 1, fontSize: 13, color: '#444', paddingRight: 8 },
-  itemLinePrice: { fontSize: 13, color: '#666', fontVariant: ['tabular-nums'] },
-  itemLineShared: { fontSize: 12, color: '#888', fontStyle: 'italic' },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  dateLabel: { fontSize: 14, fontWeight: '600', color: '#444' },
+  notes: { height: 72, paddingTop: 10, textAlignVertical: 'top' },
+  dateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    height: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
   },
-  dateBtnText: { fontSize: 14, color: '#222' },
-  dateBtnChange: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
+  dateText: { fontFamily: fonts.mono, fontSize: 13, color: colors.ink, textTransform: 'uppercase' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { height: 44, paddingHorizontal: 14, justifyContent: 'center' },
+  chipOn: { backgroundColor: colors.ink, borderWidth: 1.5, borderColor: colors.ink },
+  chipOff: { backgroundColor: colors.paper, borderWidth: 1.5, borderColor: colors.faint, borderStyle: 'dashed' },
+  chipText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.ink,
+    textTransform: 'uppercase',
+  },
+  chipTextOn: { color: colors.paper },
+  saveBtn: { marginTop: 4 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -655,91 +682,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 4 },
-  modalTodayBtn: {
-    alignSelf: 'flex-end',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#E8F7F1',
-  },
-  modalTodayBtnText: { color: '#3AB795', fontWeight: '600', fontSize: 14 },
-  totalsBlock: {
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    paddingTop: 12,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  totalsLabel: { fontSize: 15, color: '#444' },
-  totalsValue: { fontSize: 15, color: '#222' },
-  grandRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    paddingTop: 10,
-    marginTop: 6,
-  },
-  grandLabel: { fontSize: 17, fontWeight: '700' },
-  grandValue: { fontSize: 19, fontWeight: '700', color: '#3AB795' },
-  verifyBlock: {
-    backgroundColor: '#E8F7F1',
+    backgroundColor: colors.paper,
     padding: 14,
-    borderRadius: 10,
-    marginBottom: 16,
-  },
-  verifyLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  diffText: { marginTop: 8, fontSize: 14, fontWeight: '600' },
-  diffOk: { color: '#3AB795' },
-  diffBad: { color: '#c62828' },
-  saveBlock: {
-    backgroundColor: '#F7F9FB',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 20,
     gap: 10,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
-  saveTitle: { fontSize: 16, fontWeight: '700' },
-  saveHint: { fontSize: 13, color: '#777' },
-  notesInput: { minHeight: 60, textAlignVertical: 'top' },
-  subLabel: { fontSize: 14, fontWeight: '600', color: '#444', marginTop: 4 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
-  },
-  chipOn: { backgroundColor: '#3AB795' },
-  chipText: { color: '#333', fontSize: 14 },
-  chipTextOn: { color: '#fff', fontWeight: '600' },
-  saveBtn: {
-    backgroundColor: '#3AB795',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  saveBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  resetBtn: {
-    borderWidth: 1,
-    borderColor: '#c62828',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  resetBtnText: { color: '#c62828', fontWeight: '600' },
 });
