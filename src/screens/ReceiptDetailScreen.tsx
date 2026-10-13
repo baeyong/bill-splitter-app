@@ -1,26 +1,24 @@
-import React, { useLayoutEffect, useMemo } from 'react';
-import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useMemo } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Column, DashedRule, Leader, Paper, PaperButton, Stamp, TornEdge } from '../components/paper';
 import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
 import { ScreenProps } from '../types/navigation';
+import { colors, fonts, text } from '../theme';
 import { describeTax } from '../utils/calculate';
 
 const formatDateTime = (ts: number) =>
-  new Date(ts).toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  new Date(ts)
+    .toLocaleString('en-US', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    .replace(/,/g, '')
+    .replace(/ (\d{4}) /, ' $1 · ');
 
 export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'ReceiptDetail'>) {
   const { receiptId, justSaved } = route.params;
@@ -52,17 +50,10 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
     }
   };
 
-  useLayoutEffect(() => {
-    if (!receipt) return;
-    navigation.setOptions({
-      title: (receipt.restaurantName?.trim() || 'Receipt').toUpperCase(),
-    });
-  }, [navigation, receipt]);
-
   if (!receipt) {
     return (
       <View style={styles.flex}>
-        <Text style={styles.empty}>Receipt not found.</Text>
+        <Text style={[text.hint, styles.empty]}>Receipt not found.</Text>
       </View>
     );
   }
@@ -89,180 +80,86 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
     );
   };
 
+  const tipLabel =
+    receipt.bill.tipMode === 'percent'
+      ? `${receipt.bill.tipValue}%`
+      : `$${receipt.bill.tipValue.toFixed(2)}`;
+
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
-      {justSaved && (
-        <View style={styles.savedBanner}>
-          <Text style={styles.savedBannerText}>✓ Receipt saved</Text>
-        </View>
-      )}
-      <Text style={styles.metaTop}>{formatDateTime(receipt.createdAt)}</Text>
-      <Text style={styles.settingsText}>
-        {receipt.bill.stateCode} · Tax {describeTax(receipt.bill)} · Tip{' '}
-        {receipt.bill.tipMode === 'percent'
-          ? `${receipt.bill.tipValue}%`
-          : `$${receipt.bill.tipValue.toFixed(2)}`}
-      </Text>
-
-      {ownerRow && (
-        <View style={styles.youCard}>
-          <Text style={styles.youLabel}>Your share</Text>
-          <Text style={styles.youValue}>${ownerRow.total.toFixed(2)}</Text>
-          <Text style={styles.youSub}>(saved as {ownerRow.name})</Text>
-        </View>
-      )}
-
-      {receipt.notes ? (
-        <View style={styles.notesCard}>
-          <Text style={styles.notesLabel}>Notes</Text>
-          <Text style={styles.notesText}>{receipt.notes}</Text>
-        </View>
-      ) : null}
-
-      {receipt.breakdown.map((row) => (
-        <View key={row.personId} style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardName}>{row.name}</Text>
-            <Text style={styles.cardTotal}>${row.total.toFixed(2)}</Text>
-          </View>
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Items</Text>
-            <Text style={styles.breakdownValue}>${row.ownItemsTotal.toFixed(2)}</Text>
-          </View>
-          {row.sharedShare > 0 && (
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Items shared</Text>
-              <Text style={styles.breakdownValue}>${row.sharedShare.toFixed(2)}</Text>
+      <Column style={styles.stack}>
+        <View>
+          <Paper style={styles.paper}>
+            {justSaved && <Stamp label="Saved ✓" rotate={8} style={styles.savedStamp} />}
+            <View style={styles.head}>
+              <Text style={styles.title}>{receipt.restaurantName?.trim() || 'Receipt'}</Text>
+              <Text style={text.label}>{formatDateTime(receipt.createdAt)}</Text>
+              <Text style={text.label}>
+                {receipt.bill.stateCode} · Tax {describeTax(receipt.bill)} · Tip {tipLabel}
+              </Text>
             </View>
-          )}
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Subtotal</Text>
-            <Text style={styles.breakdownValue}>${row.subtotal.toFixed(2)}</Text>
-          </View>
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Tax</Text>
-            <Text style={styles.breakdownValue}>${row.tax.toFixed(2)}</Text>
-          </View>
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Tip</Text>
-            <Text style={styles.breakdownValue}>${row.tip.toFixed(2)}</Text>
-          </View>
-        </View>
-      ))}
 
-      <View style={styles.totalsBlock}>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.totalsLabel}>Subtotal</Text>
-          <Text style={styles.totalsValue}>${receipt.grandSubtotal.toFixed(2)}</Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.totalsLabel}>Tax</Text>
-          <Text style={styles.totalsValue}>${receipt.grandTax.toFixed(2)}</Text>
-        </View>
-        <View style={styles.breakdownRow}>
-          <Text style={styles.totalsLabel}>Tip</Text>
-          <Text style={styles.totalsValue}>${receipt.grandTip.toFixed(2)}</Text>
-        </View>
-        <View style={[styles.breakdownRow, styles.grandRow]}>
-          <Text style={styles.grandLabel}>Grand total</Text>
-          <Text style={styles.grandValue}>${receipt.grandTotal.toFixed(2)}</Text>
-        </View>
-      </View>
+            {ownerRow ? (
+              <View style={styles.shareBox}>
+                <Text style={text.label}>Your share ({ownerRow.name})</Text>
+                <Text style={styles.shareValue}>${ownerRow.total.toFixed(2)}</Text>
+              </View>
+            ) : (
+              <Text style={text.hint}>You weren't tagged on this receipt, so it doesn't count toward your spend.</Text>
+            )}
 
-      <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
-        <Text style={styles.editBtnText}>Edit receipt</Text>
-      </TouchableOpacity>
+            {receipt.notes ? (
+              <View style={styles.notes}>
+                <Text style={text.label}>Notes</Text>
+                <Text style={text.body}>{receipt.notes}</Text>
+              </View>
+            ) : null}
 
-      <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-        <Text style={styles.deleteBtnText}>Delete receipt</Text>
-      </TouchableOpacity>
+            <DashedRule />
+            {receipt.breakdown.map((row) => (
+              <View key={row.personId} style={styles.person}>
+                <Leader label={row.name} value={row.total.toFixed(2)} size="lg" bold />
+                <Text style={styles.breakdown}>
+                  Items {row.subtotal.toFixed(2)} + tax {row.tax.toFixed(2)} + tip {row.tip.toFixed(2)}
+                </Text>
+              </View>
+            ))}
+            <DashedRule />
+            <View style={styles.totals}>
+              <Leader label="Subtotal" value={receipt.grandSubtotal.toFixed(2)} size="sm" />
+              <Leader label="Tax" value={receipt.grandTax.toFixed(2)} size="sm" />
+              <Leader label="Tip" value={receipt.grandTip.toFixed(2)} size="sm" />
+              <Leader label="Total" value={receipt.grandTotal.toFixed(2)} size="xl" bold style={styles.grand} />
+            </View>
+            <Text style={styles.thanks} accessibilityElementsHidden>
+              *** Thank you ***
+            </Text>
+          </Paper>
+          <TornEdge />
+        </View>
+
+        <PaperButton title="Edit receipt" onPress={onEdit} />
+        <PaperButton title="Delete receipt" variant="danger" compact onPress={onDelete} />
+      </Column>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 16, paddingBottom: 40 },
-  savedBanner: {
-    backgroundColor: '#E8F7F1',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  savedBannerText: { fontSize: 14, fontWeight: '700', color: '#3AB795' },
-  metaTop: { fontSize: 14, fontWeight: '600', color: '#444' },
-  settingsText: { fontSize: 13, color: '#666', marginTop: 2, marginBottom: 14 },
-  youCard: {
-    backgroundColor: '#E8F7F1',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  youLabel: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
-  youValue: { fontSize: 26, fontWeight: '800', color: '#222', marginTop: 2 },
-  youSub: { fontSize: 12, color: '#666', marginTop: 2 },
-  notesCard: {
-    backgroundColor: '#F7F9FB',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  notesLabel: { fontSize: 13, fontWeight: '600', color: '#444' },
-  notesText: { fontSize: 14, color: '#333', marginTop: 4 },
-  card: {
-    backgroundColor: '#fafafa',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 12,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  cardName: { flex: 1, marginRight: 8, fontSize: 17, fontWeight: '700' },
-  cardTotal: { fontSize: 18, fontWeight: '700', color: '#3AB795' },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 3,
-  },
-  breakdownLabel: { fontSize: 14, color: '#555' },
-  breakdownValue: { fontSize: 14, color: '#333' },
-  totalsBlock: {
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    paddingTop: 12,
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  totalsLabel: { fontSize: 15, color: '#444' },
-  totalsValue: { fontSize: 15, color: '#222' },
-  grandRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    paddingTop: 10,
-    marginTop: 6,
-  },
-  grandLabel: { fontSize: 17, fontWeight: '700' },
-  grandValue: { fontSize: 19, fontWeight: '700', color: '#3AB795' },
-  empty: { color: '#999', textAlign: 'center', marginTop: 40 },
-  editBtn: {
-    backgroundColor: '#3AB795',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  editBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  deleteBtn: {
-    borderWidth: 1,
-    borderColor: '#c62828',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  deleteBtnText: { color: '#c62828', fontWeight: '600' },
+  flex: { flex: 1, backgroundColor: colors.ground },
+  container: { padding: 20, paddingTop: 8, paddingBottom: 40 },
+  stack: { gap: 14 },
+  empty: { textAlign: 'center', marginTop: 40 },
+  paper: { paddingVertical: 24, gap: 14 },
+  savedStamp: { position: 'absolute', top: 16, right: 14, zIndex: 1 },
+  head: { gap: 3, paddingRight: 90 },
+  title: { ...text.title, fontSize: 22 },
+  shareBox: { borderWidth: 2, borderColor: colors.ink, padding: 14, gap: 2 },
+  shareValue: { fontFamily: fonts.monoBold, fontSize: 32, color: colors.ink, fontVariant: ['tabular-nums'] },
+  notes: { gap: 4 },
+  person: { gap: 3 },
+  breakdown: { ...text.label, fontSize: 11, letterSpacing: 0.5 },
+  totals: { gap: 6 },
+  grand: { marginTop: 6 },
+  thanks: { ...text.label, textAlign: 'center', fontSize: 11, letterSpacing: 2, marginTop: 6 },
 });
