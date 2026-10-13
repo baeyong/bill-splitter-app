@@ -93,6 +93,8 @@ Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.
 
 The photo and result live on BillContext as `pendingScan` (memory only), not in ScanReceiptScreen's state, so backing out to add a person doesn't throw away a result that cost an API call. It's cleared by `applyScannedItems`, `resetBill` and `loadFromReceipt`; picking a new photo over an existing result asks first. It also carries `progress` — everything done on AssignItems (current line, picks, unit counts, skips, edits) — which AssignItems mirrors on every change and restores on mount, so backing out mid-assignment resumes rather than restarting.
 
+A multi-unit line can be handed out three ways (`LineMode` in [scan.ts](src/types/scan.ts)): **one each** (unit counts per person), **all shared** (every unit split by the same people), or **some shared** (people picked per unit, so one pizza can be personal and the other shared). Every mode resolves through `unitsOfLine` in [assignProgress.ts](src/utils/assignProgress.ts), which both the commit and the See-all rows use; switching modes converts the picks rather than clearing them. The All items line editor offers the same three.
+
 `applyScannedItems` on BillContext commits the whole assignment in **one** `setBill`. A scan is routinely 30+ lines and calling `addItem` per line would re-render that many times. One `personId` becomes an `Item`, two or more becomes a `SharedItem` — that mapping lives in `foldEntries` and is the only place the two item kinds are chosen automatically, so keep it in sync with what the manual screens do.
 
 [receiptRows.ts](src/utils/receiptRows.ts) folds units back into receipt lines — from the bill (`rowsFromBill`) or from in-progress assignment (`rowsFromProgress`) — and [ReceiptView](src/components/ReceiptView.tsx) renders them, for both All items and AssignItems' "See all" panel. Edits go through `changeLine`, which swaps every unit of a line (and corrects `bill.scan`'s copy of it) in one update. The photo outlives `pendingScan` as `scanPhotoUri`, memory only — it's never saved with a receipt.
@@ -106,6 +108,17 @@ The prompt defines "subtotal" as after comps and item discounts (receipts often 
 ### State tax rates
 
 [src/data/stateTaxRates.ts](src/data/stateTaxRates.ts) holds combined state + main-metro rates. Selecting a state on Setup pre-fills the rate; the user can override. When DC/HI/etc. behave specially (DC uses the restaurant meals rate, HI uses GET), the comments in that file explain why — preserve them.
+
+### The receipt look
+
+Every screen is styled as printed receipt paper. Colours, fonts, spacing and text presets live in [theme.ts](src/theme.ts); the building blocks (Paper, DashedRule, `Leader` for `NAME ……… 27.91` rows, Stamp, PaperButton, TornEdge, NameChip, Stepper, and `Column` which keeps content phone-width and centred on iPad) live in [paper.tsx](src/components/paper.tsx). Use them rather than restyling per screen. Mockups for every screen are on the "Split It Polish" design canvas (claude.ai artifact JePhXdYhkccD1jsxe7FTc4), page "Receipt style (full app)".
+
+- **Mono for names, numbers and labels; sans for anything read as a sentence** (hints, explanations, what people type).
+- **Capitals come from `textTransform: 'uppercase'`, never from the string**, so VoiceOver reads words. Header titles are the exception (plain strings, set in App.tsx or per screen).
+- **Green (`colors.stamp`) is only for stamps and "it adds up" signals**; buttons and selection are ink. `colors.faint` is too light for text.
+- **The native header is restyled, not replaced** — that keeps swipe-back, VoiceOver and safe areas. Put screen actions in `headerRight`.
+- **Fonts load at startup behind the splash screen** (App.tsx), importing only the six weights used from the per-weight subpaths. Don't import a font package's main entry (it bundles every weight) and don't add the `expo-font` config plugin — runtime loading works in Expo Go and EAS, and a new plugin means re-running the prebuild workflow.
+- iOS draws dashed/dotted borders only around a whole box, so single rules are clipped boxes (see `ClippedBorder`).
 
 ### Typed numbers and names
 
@@ -121,7 +134,7 @@ All scroll/list containers use `keyboardShouldPersistTaps="handled"` and `keyboa
 
 ### Safe-area bottoms
 
-Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom` to the bar's `paddingBottom`. iPhones with a home indicator otherwise tuck the bar under it. Currently in [PersonItemsScreen](src/screens/PersonItemsScreen.tsx), [PeopleScreen](src/screens/PeopleScreen.tsx), [ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx), [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) and [AllItemsScreen](src/screens/AllItemsScreen.tsx) — apply the same pattern to any new screen with a fixed footer.
+Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom` to the bar's `paddingBottom`. iPhones with a home indicator otherwise tuck the bar under it. Currently in [PersonItemsScreen](src/screens/PersonItemsScreen.tsx), [PeopleScreen](src/screens/PeopleScreen.tsx), [ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx), [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) and [AllItemsScreen](src/screens/AllItemsScreen.tsx); Home has no header, so it pads by `insets.top` too — apply the same pattern to any new screen with a fixed footer.
 
 ### Deployment
 
