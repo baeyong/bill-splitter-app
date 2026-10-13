@@ -1,13 +1,11 @@
+import { Feather } from '@expo/vector-icons';
 import React, { useLayoutEffect, useMemo } from 'react';
-import {
-  Alert,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Column, DashedRule, Leader, Paper, PaperButton, Stamp, TornEdge } from '../components/paper';
 import { useBill } from '../context/BillContext';
 import { useReceipts } from '../context/ReceiptsContext';
+import { colors, fonts, text } from '../theme';
 import { SavedReceipt } from '../types/bill';
 import { ScreenProps } from '../types/navigation';
 
@@ -19,6 +17,7 @@ const userShareOf = (r: SavedReceipt): number => {
 export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
   const { receipts } = useReceipts();
   const { bill, resetBill, editingReceiptId } = useBill();
+  const insets = useSafeAreaInsets();
 
   // An unsaved bill stays in memory until it's saved or discarded, so Home
   // offers to pick it back up instead of silently reopening it as "new".
@@ -39,9 +38,7 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
   };
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
+    navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
   const monthStats = useMemo(() => {
@@ -52,121 +49,118 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
       return d.getFullYear() * 12 + d.getMonth() === ym;
     });
     const total = inMonth.reduce((sum, r) => sum + userShareOf(r), 0);
-    return { count: inMonth.length, total };
+    const month = now.toLocaleString('en-US', { month: 'short' });
+    return { count: inMonth.length, total, month };
   }, [receipts]);
 
+  // The receipt's own date can be back-dated, so "last" means latest date.
+  const last = useMemo(
+    () => receipts.reduce<SavedReceipt | null>((a, r) => (!a || r.createdAt > a.createdAt ? r : a), null),
+    [receipts],
+  );
+
   return (
-    <View style={styles.flex}>
-      <TouchableOpacity
-        style={styles.gearBtn}
-        onPress={() => navigation.navigate('Setup')}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-      >
-        <Text style={styles.gearText}>⚙︎</Text>
-      </TouchableOpacity>
+    <ScrollView
+      style={styles.flex}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 32 }]}
+    >
+      <Column>
+        <View style={styles.topRow}>
+          <Pressable
+            onPress={() => navigation.navigate('Setup')}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Feather name="sliders" size={20} color={colors.ink} />
+          </Pressable>
+        </View>
 
-      <View style={styles.heroBlock}>
-        <Text style={styles.appName}>Split It</Text>
-        <Text style={styles.tagline}>Settle the bill, fast.</Text>
-      </View>
+        <Paper style={styles.sheet}>
+          <View style={styles.center}>
+            <Text style={styles.appName}>Split It</Text>
+            <Text style={[text.body, styles.tagline]}>Settle the bill, fast.</Text>
+          </View>
 
-      <View style={styles.actions}>
-        {inProgress ? (
-          <>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => navigation.navigate('People')}
-            >
-              <Text style={styles.primaryBtnText}>Continue bill</Text>
-              <Text style={styles.primaryBtnSub}>
+          <DashedRule />
+          {receipts.length === 0 ? (
+            <Text style={[text.hint, styles.center]}>
+              Your saved receipts and monthly spend will show up here.
+            </Text>
+          ) : (
+            <View style={styles.stats}>
+              <Leader
+                label={`Your spend · ${monthStats.month}`}
+                value={monthStats.total.toFixed(2)}
+                bold
+              />
+              <Leader label="Receipts this month" value={String(monthStats.count)} />
+              {last && (
+                <Leader
+                  label={`Last · ${last.restaurantName?.trim() || 'receipt'}`}
+                  value={userShareOf(last).toFixed(2)}
+                />
+              )}
+            </View>
+          )}
+          <DashedRule />
+
+          {inProgress ? (
+            <View style={styles.actions}>
+              <PaperButton title="Continue bill" onPress={() => navigation.navigate('People')} />
+              <Text style={[text.hint, styles.center]}>
                 {peopleCount} {peopleCount === 1 ? 'person' : 'people'} · not saved yet
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={confirmStartOver}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.linkBtnText}>Start a new bill instead</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity style={styles.primaryBtn} onPress={startNewBill}>
-            <Text style={styles.primaryBtnText}>+ New bill</Text>
-          </TouchableOpacity>
+              <PaperButton title="Start a new bill" variant="outline" compact onPress={confirmStartOver} />
+            </View>
+          ) : (
+            <View style={styles.actions}>
+              <PaperButton title="+ New bill" onPress={startNewBill} />
+            </View>
+          )}
+          <PaperButton
+            title={receipts.length > 0 ? `View receipts (${receipts.length})` : 'View receipts'}
+            variant="outline"
+            onPress={() => navigation.navigate('Receipts')}
+          />
+          <Text style={styles.thanks} accessibilityElementsHidden>
+            *** Thank you ***
+          </Text>
+        </Paper>
+        <TornEdge />
+
+        {!inProgress && receipts.length > 0 && (
+          <Stamp label="All bills settled" rotate={-3} style={styles.stamp} />
         )}
-
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => navigation.navigate('Receipts')}
-        >
-          <Text style={styles.secondaryBtnText}>
-            View receipts
-            {receipts.length > 0 ? `  ·  ${receipts.length}` : ''}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {monthStats.count > 0 && (
-        <View style={styles.statsCard}>
-          <Text style={styles.statsLabel}>Your spend this month</Text>
-          <Text style={styles.statsValue}>${monthStats.total.toFixed(2)}</Text>
-          <Text style={styles.statsSub}>
-            across {monthStats.count} receipt{monthStats.count === 1 ? '' : 's'}
-          </Text>
-        </View>
-      )}
-    </View>
+      </Column>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#fff', padding: 24 },
-  gearBtn: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    padding: 6,
-    zIndex: 1,
-  },
-  gearText: { fontSize: 22, color: '#888' },
-  heroBlock: {
+  flex: { flex: 1, backgroundColor: colors.ground },
+  container: { paddingHorizontal: 20 },
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  settingsBtn: {
+    width: 44,
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
     alignItems: 'center',
-    marginTop: 100,
-    marginBottom: 48,
+    justifyContent: 'center',
   },
-  appName: { fontSize: 36, fontWeight: '800', color: '#222' },
-  tagline: { fontSize: 15, color: '#777', marginTop: 6 },
-  actions: { gap: 12, marginTop: 12 },
-  primaryBtn: {
-    backgroundColor: '#3AB795',
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#3AB795',
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 2,
+  sheet: { marginTop: 20, paddingHorizontal: 22, paddingVertical: 28, gap: 18 },
+  center: { alignItems: 'center', textAlign: 'center' },
+  appName: {
+    fontFamily: fonts.monoBold,
+    fontSize: 28,
+    letterSpacing: 3,
+    color: colors.ink,
+    textTransform: 'uppercase',
   },
-  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  primaryBtnSub: { color: '#E8F7F1', fontSize: 13, marginTop: 2 },
-  linkBtn: { alignItems: 'center', paddingVertical: 4 },
-  linkBtnText: { color: '#888', fontSize: 14, fontWeight: '600' },
-  secondaryBtn: {
-    backgroundColor: '#F1F5F4',
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  secondaryBtnText: { color: '#3AB795', fontSize: 16, fontWeight: '700' },
-  statsCard: {
-    marginTop: 32,
-    backgroundColor: '#E8F7F1',
-    borderRadius: 12,
-    padding: 16,
-  },
-  statsLabel: { fontSize: 13, color: '#3AB795', fontWeight: '600' },
-  statsValue: { fontSize: 28, fontWeight: '800', color: '#222', marginTop: 4 },
-  statsSub: { fontSize: 12, color: '#666', marginTop: 2 },
+  tagline: { color: colors.muted, marginTop: 6 },
+  stats: { gap: 10 },
+  actions: { gap: 12 },
+  thanks: { ...text.label, textAlign: 'center', fontSize: 11, letterSpacing: 2 },
+  stamp: { alignSelf: 'center', marginTop: 32 },
 });

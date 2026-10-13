@@ -31,7 +31,7 @@ export default function PersonItemsScreen({ navigation, route }: ScreenProps<'Pe
   const [qty, setQty] = useState(1);
 
   useLayoutEffect(() => {
-    if (person) navigation.setOptions({ title: person.name });
+    if (person) navigation.setOptions({ title: person.name.toUpperCase() });
   }, [navigation, person]);
 
   if (!person) {

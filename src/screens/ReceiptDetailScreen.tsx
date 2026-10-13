@@ -55,7 +55,7 @@ export default function ReceiptDetailScreen({ navigation, route }: ScreenProps<'
   useLayoutEffect(() => {
     if (!receipt) return;
     navigation.setOptions({
-      title: receipt.restaurantName?.trim() || 'Receipt',
+      title: (receipt.restaurantName?.trim() || 'Receipt').toUpperCase(),
     });
   }, [navigation, receipt]);
 

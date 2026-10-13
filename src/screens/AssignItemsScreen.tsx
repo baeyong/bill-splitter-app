@@ -77,7 +77,7 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: `Item ${Math.min(index + 1, total)} of ${total}`,
+      title: `LINE ${Math.min(index + 1, total)} OF ${total}`,
       headerRight: () => (
         <TouchableOpacity
           onPress={() => setSeeAllOpen(true)}
