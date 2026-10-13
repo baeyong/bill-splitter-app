@@ -361,7 +361,9 @@ export default function AssignItemsScreen({ navigation, route }: ScreenProps<'As
               </View>
             ) : (
               <>
-                <Text style={styles.itemName} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {/* One size for every item: shrinking to fit made long names tiny
+                    next to short ones. Long names wrap instead. */}
+                <Text style={styles.itemName} numberOfLines={3}>
                   {current.name}
                 </Text>
                 <Leader
@@ -638,8 +640,8 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontFamily: fonts.monoBold,
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 26,
+    lineHeight: 32,
     letterSpacing: 1,
     color: colors.ink,
     textTransform: 'uppercase',

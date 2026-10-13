@@ -34,27 +34,36 @@ const ymdLocal = (d: Date) =>
 const formatPickerLabel = (d: Date) =>
   d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
-/** "Coke × 2 · Burger · Fries × 2 (1/3)" — what one person had, briefly. */
-const itemsSummary = (bill: Bill, personId: string): string => {
-  const counts = new Map<string, { label: string; n: number }>();
-  const bump = (key: string, label: string) => {
-    const c = counts.get(key);
-    if (c) c.n += 1;
-    else counts.set(key, { label, n: 1 });
+/**
+ * One line per thing a person had, like the paper receipt: identical items
+ * combine ("Coke × 2  5.00"), and a shared dish shows their slice ("Fries
+ * (1/3)  1.50").
+ */
+const itemLines = (bill: Bill, personId: string): { key: string; label: string; amount: number }[] => {
+  const lines = new Map<string, { label: string; n: number; amount: number }>();
+  const add = (key: string, label: string, amount: number) => {
+    const line = lines.get(key);
+    if (line) {
+      line.n += 1;
+      line.amount += amount;
+    } else lines.set(key, { label, n: 1, amount });
   };
   for (const item of bill.people.find((p) => p.id === personId)?.items ?? []) {
-    bump(`o:${item.name.trim().toLowerCase()}`, item.name.trim());
+    add(`o:${item.name.trim().toLowerCase()}:${item.price}`, item.name.trim(), item.price);
   }
   for (const s of bill.sharedItems) {
-    if (!s.personIds.includes(personId)) continue;
-    bump(`s:${s.name.trim().toLowerCase()}:${s.personIds.length}`, `${s.name.trim()}|1/${s.personIds.length}`);
+    if (!s.personIds.includes(personId) || s.personIds.length === 0) continue;
+    add(
+      `s:${s.name.trim().toLowerCase()}:${s.totalPrice}:${s.personIds.length}`,
+      `${s.name.trim()} (1/${s.personIds.length})`,
+      s.totalPrice / s.personIds.length,
+    );
   }
-  return [...counts.values()]
-    .map(({ label, n }) => {
-      const [name, share] = label.split('|');
-      return `${name}${n > 1 ? ` × ${n}` : ''}${share ? ` (${share})` : ''}`;
-    })
-    .join(' · ');
+  return [...lines.entries()].map(([key, { label, n, amount }]) => ({
+    key,
+    label: n > 1 ? `${label} × ${n}` : label,
+    amount,
+  }));
 };
 
 export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
@@ -374,9 +383,15 @@ export default function SummaryScreen({ navigation }: ScreenProps<'Summary'>) {
           style={({ pressed }) => [styles.personBlock, pressed && { opacity: 0.6 }]}
         >
           <Leader label={row.name} value={row.total.toFixed(2)} size="lg" bold />
-          {itemsSummary(bill, row.personId) !== '' && (
-            <Text style={text.hint}>{itemsSummary(bill, row.personId)}</Text>
-          )}
+          {itemLines(bill, row.personId).map((line) => (
+            <Leader
+              key={line.key}
+              label={line.label}
+              value={line.amount.toFixed(2)}
+              size="sm"
+              style={styles.itemLine}
+            />
+          ))}
           <Text style={styles.breakdown}>
             Items {row.subtotal.toFixed(2)} + tax {row.tax.toFixed(2)} + tip {row.tip.toFixed(2)}
           </Text>
@@ -631,6 +646,7 @@ const styles = StyleSheet.create({
   receiptHead: { alignItems: 'center', gap: 4 },
   receiptTitle: { ...text.title, textAlign: 'center' },
   personBlock: { gap: 4 },
+  itemLine: { paddingLeft: 12 },
   breakdown: { ...text.label, fontSize: 11, letterSpacing: 0.5 },
   totals: { gap: 6 },
   grand: { marginTop: 6 },
