@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Column, DashedRule, Leader, Paper, PaperButton, Stamp } from '../components/paper';
+import ReceiptPhoto from '../components/ReceiptPhoto';
 import ScanConsentSheet from '../components/ScanConsentSheet';
 import { useBill } from '../context/BillContext';
 import { colors, fonts, text } from '../theme';
@@ -33,6 +35,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const [error, setError] = useState<string | null>(null);
   const [consented, setConsented] = useScanConsent();
   const [consentOpen, setConsentOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const [useTax, setUseTax] = useState(true);
   const [useTip, setUseTip] = useState(true);
@@ -167,14 +170,18 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
           )}
 
           {imageUri && (
-            <View style={styles.previewWrap}>
-              <Image
-                source={{ uri: imageUri }}
-                style={styles.preview}
-                resizeMode="contain"
-                accessibilityLabel="Your receipt photo"
-              />
-            </View>
+            // Tap to check the photo at full size, same viewer as Assign's See all.
+            <Pressable
+              onPress={() => setPhotoOpen(true)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel="Your receipt photo. Tap to view full size and zoom"
+              style={({ pressed }) => [styles.previewWrap, pressed && { opacity: 0.85 }]}
+            >
+              <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="contain" />
+              <View style={styles.zoomTag} pointerEvents="none">
+                <Text style={styles.zoomTagText}>Tap to zoom</Text>
+              </View>
+            </Pressable>
           )}
 
           <View style={styles.pickRow}>
@@ -298,6 +305,10 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
         </Column>
       </View>
 
+      {imageUri && (
+        <ReceiptPhoto uri={imageUri} visible={photoOpen} onClose={() => setPhotoOpen(false)} />
+      )}
+
       <ScanConsentSheet
         visible={consentOpen}
         onAllow={allowAndScan}
@@ -328,6 +339,21 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   preview: { width: '100%', height: '100%' },
+  zoomTag: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    backgroundColor: colors.ink,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  zoomTagText: {
+    fontFamily: fonts.monoBold,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.paper,
+    textTransform: 'uppercase',
+  },
   pickRow: { flexDirection: 'row', gap: 10 },
   errorCard: {
     backgroundColor: colors.paper,
