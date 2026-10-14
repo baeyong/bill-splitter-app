@@ -64,7 +64,7 @@ export type AssignProgress = {
 };
 
 /** What the user was doing when the scan failed — drives the retry copy. */
-export type ScanErrorKind = 'config' | 'network' | 'api' | 'parse' | 'empty';
+export type ScanErrorKind = 'config' | 'network' | 'api' | 'parse' | 'empty' | 'limit';
 
 /**
  * One assigned line, ready to be folded into the bill. A single `personIds`

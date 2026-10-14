@@ -9,6 +9,7 @@ npm start              # Expo dev server (use Expo Go to scan QR)
 npx expo start         # same
 npx expo install <pkg> # add a dep — preferred over `npm install` so versions match the Expo SDK
 npx tsc --noEmit       # typecheck (no lint script is configured)
+cd server && npm test  # the scan server's own tests (vitest); deploy with `npm run deploy`
 npm test               # Jest (jest-expo): pure logic + BillContext via renderHook
 ```
 
@@ -16,7 +17,7 @@ The dev loop is **Expo Go**, and keeping it that way is a live constraint — ev
 
 `ios/` **is** committed, despite that. It's generated output, not hand-maintained: the [prebuild-ios workflow](.github/workflows/prebuild-ios.yml) runs `expo prebuild` on a Linux runner and pushes the result, working around an SDK 54 EAS prebuild bug (and `expo prebuild` refuses to run from Windows). Re-run that workflow by hand after any `app.json` change that affects native config — including adding a config plugin — or EAS will build stale native config. Never edit `ios/` directly.
 
-Receipt scanning needs `EXPO_PUBLIC_ANTHROPIC_API_KEY` in `.env.local` (see `.env.example`). Without it the app runs fine and only the scan screen complains.
+Receipt scanning needs `EXPO_PUBLIC_SCAN_URL` in `.env.local` (see `.env.example`), pointing at the scan server. Without it the app runs fine and only the scan screen complains.
 
 ## Architecture
 
@@ -80,14 +81,20 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 
 [ScanReceiptScreen](src/screens/ScanReceiptScreen.tsx) → [AssignItemsScreen](src/screens/AssignItemsScreen.tsx) ends by creating ordinary `Item`s and `SharedItem`s, so `calculate` and the per-person Summary work exactly as for a hand-entered bill — keep it that way. The one addition is for *display*: each unit carries an optional `lineId`, and `bill.scan` keeps the receipt's lines (skipped ones too) and printed totals, so [AllItemsScreen](src/screens/AllItemsScreen.tsx) can show the bill laid out like the paper receipt. Both are optional and ignored by `calculate`; older bills without them fall back to grouping items by name + price.
 
-[parseReceipt.ts](src/utils/parseReceipt.ts) shrinks the photo to the largest size Claude reads at full detail ([imageFit.ts](src/utils/imageFit.ts): 2576px long edge / 4784 visual tokens — anything bigger gets shrunk a second time server-side, blurring small print; never enlarged) as a JPEG and sends it to Claude (`claude-haiku-5-5`) through `@anthropic-ai/sdk`, using structured outputs (`output_config.format`) so the reply is guaranteed to match `RECEIPT_SCHEMA`. Things to know about it:
+[parseReceipt.ts](src/utils/parseReceipt.ts) shrinks the photo to the largest size Claude reads at full detail ([imageFit.ts](src/utils/imageFit.ts): 2576px long edge / 4784 visual tokens — anything bigger gets shrunk a second time server-side, blurring small print; never enlarged), then POSTs it as base64 JPEG to the **scan server** with a random per-install id (`X-Install-Id`, [installId.ts](src/utils/installId.ts)). The app never talks to Anthropic and has no API key. Things to know:
 
 - **A receipt line stays one `ScannedItem` with a `quantity`.** `price` is the *unit* price. AssignItems shows "3 × Soda" as one card and lets the user hand units out per person ("Alice 2, Bob 1"), or switch to sharing the whole line evenly. Only at commit is each unit expanded into its own entry — the same shape the manual quantity stepper produces — so nothing downstream knows about quantity.
-- **Haiku on purpose, for cost.** It's ~0.1¢ a scan versus ~2–4¢ on Opus; the user reviews every line on AssignItems and All items checks the total against the receipt, which is the safety net for misreads. Moving up to Sonnet/Opus was judged too expensive — don't switch models without asking.
-- **Effort is `low` on purpose.** Reading printed text is extraction, not reasoning, and the user is waiting on a spinner. Haiku's default is `medium`; raise `EFFORT` before reaching for a different model if receipts start misreading.
-- **No refusal fallback.** Haiku 5.5 has no server-side fallback (`fallbacks` would be ignored or 400), so a safety-classifier decline surfaces as a retryable error. It uses the plain `client.messages.create`.
+- **The server's error contract** (status + `error`/`reason`) is turned into user-facing messages in [scanErrors.ts](src/utils/scanErrors.ts); a 429 is the daily limit, with its own `'limit'` kind.
+
+### The scan server (`server/`)
+
+A Cloudflare Worker ([server/src/index.ts](server/src/index.ts)) with its own package, tsconfig and vitest tests — the root `tsc` and Jest skip it. It holds `ANTHROPIC_API_KEY` as a Worker secret and owns **everything about the Claude request** ([receipt.ts](server/src/receipt.ts): model, prompt, `RECEIPT_SCHEMA`, effort). That's deliberate: the app can only ask for a receipt to be read, never use the key for anything else. Don't add a pass-through endpoint.
+
+- **Haiku on purpose, for cost.** ~0.1¢ a scan versus ~2–4¢ on Opus; the user reviews every line on AssignItems and All items checks totals against the receipt. Moving up to Sonnet/Opus was judged too expensive — don't switch models without asking. **Effort is `low`**; raise it before reaching for a bigger model if receipts misread.
+- **No refusal fallback.** Haiku 5.5 has no server-side fallback, so a decline comes back as `422 refused`.
 - **Every object in `RECEIPT_SCHEMA` needs `additionalProperties: false`** — structured outputs rejects the schema otherwise.
-- **[metro.config.js](metro.config.js) forces the SDK's CommonJS build.** The ESM build has a circular import that crashes dev builds at startup (`Cannot read property 'BetaToolRunner' of undefined`) when React Refresh reads its exports mid-cycle. Don't remove the override without re-testing in Expo Go.
+- **Daily limits** (per install id, per hashed IP, and a global ceiling that caps spend) live in `[vars]` in [wrangler.toml](server/wrangler.toml) and are enforced by the `Quota` Durable Object, which keeps only today's counts. The decision itself is pure ([limits.ts](server/src/limits.ts)) and tested. A refused scan is never counted; a scan that fails at Anthropic is.
+- **Photos are never stored or logged**, and IPs are only kept hashed, for the day. The privacy policy relies on that — keep it true.
 
 Scan types live in [src/types/scan.ts](src/types/scan.ts) separately from `bill.ts` because none of them are persisted — a scan is transient, converted, and dropped.
 
@@ -103,7 +110,7 @@ A multi-unit line can be handed out three ways (`LineMode` in [scan.ts](src/type
 
 The prompt defines "subtotal" as after comps and item discounts (receipts often print it above the comp lines), and folds gratuity / service charge into "tip", so the printed figures line up with what the bill can represent.
 
-**This is the only feature that sends anything off the device.** The README says so explicitly; if you change what's uploaded, change that line too.
+**This is the only feature that sends anything off the device** (the photo and the install id, via the scan server to Anthropic). The README says so explicitly; if you change what's uploaded, change that line and the privacy policy too.
 
 ### State tax rates
 
@@ -140,4 +147,4 @@ Screens with a fixed bottom bar use `useSafeAreaInsets()` and add `insets.bottom
 
 Expo Go for development, EAS Build + TestFlight for production. Default to the Expo managed workflow — don't introduce third-party native modules without a clear reason (see Commands above for why).
 
-`EXPO_PUBLIC_*` vars are inlined into the bundle at build time, so `EXPO_PUBLIC_ANTHROPIC_API_KEY` must be set as an EAS environment variable for production builds — `.env.local` is not uploaded. It also means the key ships inside the IPA and is extractable, and unlike a Google key it **can't be restricted to the app's bundle ID** — anyone who pulls it out can spend on the account. Mitigation is a dedicated Claude Console workspace with a low spend limit. If this app ever gets distributed beyond a small group, that key needs to move behind a proxy.
+`EXPO_PUBLIC_*` vars are inlined into the bundle at build time, so `EXPO_PUBLIC_SCAN_URL` must be set as an EAS environment variable for production builds — `.env.local` is not uploaded. The URL is public by nature; the protection is the server's limits, not secrecy. Builds 14 and 15 predate the server and still carry an Anthropic key, which should be deleted in the Claude Console once a server-backed build is out.

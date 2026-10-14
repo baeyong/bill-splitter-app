@@ -17,19 +17,31 @@ Each person gets their own items, shared dishes are divided among whoever ate th
 - **Saved receipts** — optionally save a receipt with a restaurant name and notes; tag which person was you.
 - **Receipt history** — list view + calendar view per month, with your monthly spend at the top.
 
-All saved data lives on your device (AsyncStorage). The one exception is receipt scanning: if you use it, that photo is uploaded to Anthropic's Claude API to be read. Everything else — people, items, saved receipts — stays on the phone.
+All saved data lives on your device (AsyncStorage). The one exception is receipt scanning: if you use it, that photo is sent through the app's scan server (a Cloudflare Worker, `server/`) to Anthropic's Claude API to be read. The server doesn't store or log photos. With the photo goes a random per-install id, used only for the daily scan limit. Everything else — people, items, saved receipts — stays on the phone.
 
 ## Running it
 
 ```bash
 npm install
-cp .env.example .env.local   # then paste in an Anthropic API key
+cp .env.example .env.local   # then set EXPO_PUBLIC_SCAN_URL
 npm start
 ```
 
 Then scan the QR code with Expo Go on your phone.
 
-Receipt scanning needs an Anthropic API key from the [Claude Console](https://platform.claude.com/settings/keys) in `.env.local`. It's pay-as-you-go — there's no free tier — so a scan costs a few cents. Without one the rest of the app works normally and the scan screen tells you the key is missing. For EAS builds the key has to exist at build time too — set it as an EAS environment variable, since `.env.local` is not uploaded with the build.
+Receipt scanning goes through the scan server in [`server/`](server/), which holds the Anthropic API key and enforces daily limits (per phone, per connection, and overall). Set `EXPO_PUBLIC_SCAN_URL` in `.env.local` to the deployed Worker, or to `npm run dev` in `server/` on your Mac's LAN address. Without it the rest of the app works normally and the scan screen says scanning isn't set up. For EAS builds set it as an EAS environment variable too, since `.env.local` is not uploaded.
+
+Deploying the server (a free Cloudflare account is enough):
+
+```bash
+cd server
+npm install
+npx wrangler login
+npx wrangler secret put ANTHROPIC_API_KEY   # paste the key; it never goes in the repo or the app
+npm run deploy                              # prints the Worker's URL
+```
+
+Daily limits are plain settings in [`server/wrangler.toml`](server/wrangler.toml) — raise them and redeploy.
 
 ## Stack
 

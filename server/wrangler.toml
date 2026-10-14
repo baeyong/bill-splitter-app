@@ -1,0 +1,22 @@
+# Split It's scan server. Deploy: `npm run deploy`.
+# The Anthropic key is a secret, never in this file:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+name = "split-it-scan"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Daily limits, per UTC day. Raise these as the app grows.
+[vars]
+PER_DEVICE_DAILY = "20"   # scans per phone
+PER_IP_DAILY = "40"       # scans per internet connection (backstop for faked install ids)
+GLOBAL_DAILY = "300"      # scans across everyone — the hard ceiling on spend
+MAX_IMAGE_BYTES = "4000000"
+
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "Quota"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Quota"]

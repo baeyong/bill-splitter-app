@@ -5,5 +5,7 @@
     // TS 6 no longer picks up @types packages automatically; jest's globals
     // (describe/it/expect) are needed by the *.test.ts files.
     "types": ["jest"]
-  }
+  },
+  // The scan server (server/) has its own tsconfig, types and tests.
+  "exclude": ["node_modules", "server"]
 }
