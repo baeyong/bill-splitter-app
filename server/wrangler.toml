@@ -6,6 +6,11 @@ main = "src/index.ts"
 compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Served at https://split-it-scan.<account>.workers.dev; no per-version preview
+# URLs, so there's only ever one public copy of the server.
+workers_dev = true
+preview_urls = false
+
 # Daily limits, per UTC day. Raise these as the app grows.
 [vars]
 PER_DEVICE_DAILY = "20"   # scans per phone
