@@ -12,11 +12,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Column, DashedRule, Leader, Paper, PaperButton, Stamp } from '../components/paper';
+import ScanConsentSheet from '../components/ScanConsentSheet';
 import { useBill } from '../context/BillContext';
 import { colors, fonts, text } from '../theme';
 import { PendingScan } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
 import { ReceiptScanError, parseReceipt } from '../utils/parseReceipt';
+import { useScanConsent } from '../utils/scanConsent';
 
 export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanReceipt'>) {
   const { applyReceiptTax, setTipMode, setTipValue, pendingScan, setPendingScan } = useBill();
@@ -29,6 +31,8 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const result = pendingScan?.result ?? null;
   const progress = pendingScan?.progress;
   const [error, setError] = useState<string | null>(null);
+  const [consented, setConsented] = useScanConsent();
+  const [consentOpen, setConsentOpen] = useState(false);
 
   const [useTax, setUseTax] = useState(true);
   const [useTip, setUseTip] = useState(true);
@@ -75,7 +79,19 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
     choosePhoto(picked.assets[0].uri);
   };
 
-  const scan = async () => {
+  // Nothing leaves the phone until the user has said yes (scanConsent.ts).
+  const scan = () => {
+    if (consented) runScan();
+    else setConsentOpen(true);
+  };
+
+  const allowAndScan = async () => {
+    setConsentOpen(false);
+    await setConsented(true);
+    runScan();
+  };
+
+  const runScan = async () => {
     const uri = imageUri;
     if (!uri) return;
     // Every update checks the photo is still the one being scanned: the user
@@ -281,6 +297,12 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
           )}
         </Column>
       </View>
+
+      <ScanConsentSheet
+        visible={consentOpen}
+        onAllow={allowAndScan}
+        onDecline={() => setConsentOpen(false)}
+      />
     </View>
   );
 }

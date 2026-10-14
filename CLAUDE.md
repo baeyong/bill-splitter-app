@@ -86,6 +86,8 @@ A `SharedItem` carries a `totalPrice` and an array of `personIds`. The per-perso
 - **A receipt line stays one `ScannedItem` with a `quantity`.** `price` is the *unit* price. AssignItems shows "3 × Soda" as one card and lets the user hand units out per person ("Alice 2, Bob 1"), or switch to sharing the whole line evenly. Only at commit is each unit expanded into its own entry — the same shape the manual quantity stepper produces — so nothing downstream knows about quantity.
 - **The server's error contract** (status + `error`/`reason`) is turned into user-facing messages in [scanErrors.ts](src/utils/scanErrors.ts); a 429 is the daily limit, with its own `'limit'` kind.
 
+**No photo is sent without consent.** [scanConsent.ts](src/utils/scanConsent.ts) stores (on the phone only) whether the user agreed; ScanReceipt shows [ScanConsentSheet](src/components/ScanConsentSheet.tsx) before the first send, and Settings has the switch to withdraw. This is for Apple guideline 5.1.2(i) (explicit permission before sharing personal data with third-party AI) and 5.1.1(ii) (an easy way to withdraw) — any new path that sends a photo must go through the same check. `PRIVACY_POLICY_URL` there turns on the policy links once the page exists.
+
 ### The scan server (`server/`)
 
 A Cloudflare Worker ([server/src/index.ts](server/src/index.ts)) with its own package, tsconfig and vitest tests — the root `tsc` and Jest skip it. It holds `ANTHROPIC_API_KEY` as a Worker secret and owns **everything about the Claude request** ([receipt.ts](server/src/receipt.ts): model, prompt, `RECEIPT_SCHEMA`, effort). That's deliberate: the app can only ask for a receipt to be read, never use the key for anything else. Don't add a pass-through endpoint.

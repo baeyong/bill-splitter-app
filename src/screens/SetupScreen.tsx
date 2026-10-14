@@ -2,10 +2,12 @@ import { Picker } from '@react-native-picker/picker';
 import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -13,6 +15,7 @@ import {
 import { Column, DashedRule, Paper, PaperButton } from '../components/paper';
 import { useBill } from '../context/BillContext';
 import { colors, fonts, text } from '../theme';
+import { PRIVACY_POLICY_URL, useScanConsent } from '../utils/scanConsent';
 import { getStateByCode, STATE_TAX_RATES } from '../data/stateTaxRates';
 import { parseAmount } from '../utils/money';
 import { ScreenProps } from '../types/navigation';
@@ -24,6 +27,8 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
   const [taxInput, setTaxInput] = useState(String(savedTax.taxRatePercent));
   const stateInfo = getStateByCode(savedTax.stateCode);
   const isCustom = stateInfo !== undefined && savedTax.taxRatePercent !== stateInfo.rate;
+  // Withdrawing consent is as easy as giving it (Apple 5.1.1(ii)).
+  const [scanConsent, setScanConsent] = useScanConsent();
 
   useEffect(() => {
     if (!prefsLoaded) return;
@@ -114,11 +119,36 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
           </Paper>
 
           <Paper style={styles.card}>
-            <Text style={text.label}>About scanning</Text>
+            <Text style={text.label}>Receipt scanning</Text>
+            <View style={styles.switchRow}>
+              <View style={styles.switchText}>
+                <Text style={styles.fieldLabel}>Send photos to Claude</Text>
+                <Text style={text.hint}>
+                  Lets Split It read receipts for you. When off, you'll be asked again before the
+                  next scan.
+                </Text>
+              </View>
+              <Switch
+                value={scanConsent === true}
+                onValueChange={(on) => setScanConsent(on)}
+                trackColor={{ true: colors.ink, false: colors.rule }}
+                accessibilityLabel="Send photos to Claude"
+              />
+            </View>
+            <DashedRule />
             <Text style={text.hint}>
-              Receipt photos are sent to Anthropic's Claude API to be read. Nothing else leaves your
-              phone.
+              Receipt photos go through Split It's server to Anthropic's Claude API to be read. The
+              server doesn't keep them. Nothing else leaves your phone.
             </Text>
+            {PRIVACY_POLICY_URL && (
+              <Pressable
+                onPress={() => Linking.openURL(PRIVACY_POLICY_URL!)}
+                accessibilityRole="link"
+                hitSlop={8}
+              >
+                <Text style={styles.smallLink}>Read the privacy policy</Text>
+              </Pressable>
+            )}
           </Paper>
 
           <PaperButton title="Done" onPress={done} />
@@ -153,6 +183,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
     backgroundColor: colors.paper,
   },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  switchText: { flex: 1, gap: 2 },
   customRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   customText: { color: colors.warn, flex: 1 },
   smallLink: {
