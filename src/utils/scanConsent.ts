@@ -8,8 +8,8 @@ import { useEffect, useState } from 'react';
 // only; nothing about it is sent anywhere.
 const CONSENT_KEY = 'bill-splitter:scan-consent:v1';
 
-/** Set once the privacy policy is published; until then the link stays hidden. */
-export const PRIVACY_POLICY_URL: string | null = null;
+/** Served from docs/ by GitHub Pages. `null` hides the policy links. */
+export const PRIVACY_POLICY_URL: string | null = 'https://baeyong.github.io/tabbly/privacy/';
 
 let cached: boolean | null = null;
 const listeners = new Set<(granted: boolean) => void>();
