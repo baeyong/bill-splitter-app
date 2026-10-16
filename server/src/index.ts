@@ -1,4 +1,4 @@
-// Split It's scan server: the one thing between the app and Anthropic.
+// Tabbly's scan server: the one thing between the app and Anthropic.
 //
 // POST /scan  { image: <base64 JPEG> }  with header X-Install-Id
 //   200 { receipt }              what Claude read, in the app's RECEIPT_SCHEMA shape

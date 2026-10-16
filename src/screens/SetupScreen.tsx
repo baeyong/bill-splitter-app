@@ -124,7 +124,7 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
               <View style={styles.switchText}>
                 <Text style={styles.fieldLabel}>Send photos to Claude</Text>
                 <Text style={text.hint}>
-                  Lets Split It read receipts for you. When off, you'll be asked again before the
+                  Lets Tabbly read receipts for you. When off, you'll be asked again before the
                   next scan.
                 </Text>
               </View>
@@ -137,7 +137,7 @@ export default function SetupScreen({ navigation }: ScreenProps<'Setup'>) {
             </View>
             <DashedRule />
             <Text style={text.hint}>
-              Receipt photos go through Split It's server to Anthropic's Claude API to be read. The
+              Receipt photos go through Tabbly's server to Anthropic's Claude API to be read. The
               server doesn't keep them. Nothing else leaves your phone.
             </Text>
             {PRIVACY_POLICY_URL && (

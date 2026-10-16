@@ -1,4 +1,4 @@
-# Bill Splitter
+# Tabbly
 
 A simple bill splitter for restaurant meals — built with Expo + React Native.
 

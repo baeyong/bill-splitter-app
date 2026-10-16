@@ -67,7 +67,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
     if (!perm.granted) {
       Alert.alert(
         'Camera access needed',
-        'Enable camera access for Split It in Settings to photograph a receipt.',
+        'Enable camera access for Tabbly in Settings to photograph a receipt.',
       );
       return;
     }

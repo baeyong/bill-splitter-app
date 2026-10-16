@@ -1,4 +1,4 @@
-# Split It's scan server. Deploy: `npm run deploy`.
+# Tabbly's scan server. Deploy: `npm run deploy`.
 # The Anthropic key is a secret, never in this file:
 #   npx wrangler secret put ANTHROPIC_API_KEY
 name = "split-it-scan"

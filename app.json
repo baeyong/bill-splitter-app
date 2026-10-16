@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Split It",
+    "name": "Tabbly",
     "slug": "split-it",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -38,8 +38,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Split It uses the camera to photograph a receipt so it can read the items off it.",
-          "photosPermission": "Split It needs access to your photos so you can pick a receipt you already took.",
+          "cameraPermission": "Tabbly uses the camera to photograph a receipt so it can read the items off it.",
+          "photosPermission": "Tabbly needs access to your photos so you can pick a receipt you already took.",
           "microphonePermission": false
         }
       ],

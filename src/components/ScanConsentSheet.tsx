@@ -6,8 +6,8 @@ import { PRIVACY_POLICY_URL } from '../utils/scanConsent';
 import { Column, DashedRule, PaperButton } from './paper';
 
 const POINTS = [
-  "To read the items, Split It sends this receipt photo to Anthropic's Claude, through Split It's own server.",
-  "Split It's server doesn't keep the photo. It only counts scans per day.",
+  "To read the items, Tabbly sends this receipt photo to Anthropic's Claude, through Tabbly's own server.",
+  "Tabbly's server doesn't keep the photo. It only counts scans per day.",
   'Everything else — names, amounts, saved receipts — stays on your phone.',
 ];
 

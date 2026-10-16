@@ -78,7 +78,7 @@ export default function HomeScreen({ navigation }: ScreenProps<'Home'>) {
 
         <Paper style={styles.sheet}>
           <View style={styles.center}>
-            <Text style={styles.appName}>Split It</Text>
+            <Text style={styles.appName}>Tabbly</Text>
             <Text style={[text.body, styles.tagline]}>Settle the bill, fast.</Text>
           </View>
 
