@@ -20,6 +20,7 @@ import { colors, fonts, text } from '../theme';
 import { PendingScan } from '../types/scan';
 import { ScreenProps } from '../types/navigation';
 import { ReceiptScanError, parseReceipt } from '../utils/parseReceipt';
+import { useScanAllowance } from '../utils/scanAllowance';
 import { useScanConsent } from '../utils/scanConsent';
 
 export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanReceipt'>) {
@@ -36,6 +37,7 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
   const [consented, setConsented] = useScanConsent();
   const [consentOpen, setConsentOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const allowance = useScanAllowance();
 
   const [useTax, setUseTax] = useState(true);
   const [useTip, setUseTip] = useState(true);
@@ -300,7 +302,17 @@ export default function ScanReceiptScreen({ navigation }: ScreenProps<'ScanRecei
               <Text style={styles.scanningText}>Reading receipt…</Text>
             </View>
           ) : (
-            <PaperButton title="Scan receipt" disabled={!imageUri} onPress={scan} />
+            <>
+              {allowance && (
+                // The server enforces the limit; this is the last count it reported.
+                <Text style={[text.label, styles.allowance]} accessibilityLiveRegion="polite">
+                  {allowance.left > 0
+                    ? `${allowance.left} of ${allowance.limit} scans left this week`
+                    : 'No scans left this week · resets Monday'}
+                </Text>
+              )}
+              <PaperButton title="Scan receipt" disabled={!imageUri} onPress={scan} />
+            </>
           )}
         </Column>
       </View>
@@ -387,6 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
   },
   footerStack: { gap: 10 },
+  allowance: { textAlign: 'center' },
   scanning: {
     height: 56,
     flexDirection: 'row',

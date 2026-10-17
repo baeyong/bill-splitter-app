@@ -20,11 +20,15 @@ export const scanErrorFor = (status: number, body: unknown): ReceiptScanError =>
   const reason = (body as { reason?: unknown } | null)?.reason;
 
   if (status === 429 && error === 'limit') {
+    const limit = (body as { scanLimit?: unknown } | null)?.scanLimit;
+    const scans = typeof limit === 'number' ? `${limit} scans` : 'scans';
     return new ReceiptScanError(
       'limit',
       reason === 'global'
         ? 'Scanning is taking a break for today. Try again tomorrow, or add the items by hand.'
-        : "You've used today's scans. Try again tomorrow, or add the items by hand.",
+        : reason === 'ip'
+          ? 'Too many scans from this internet connection today. Try again tomorrow, or add the items by hand.'
+          : `You've used this week's ${scans}. They reset on Monday — until then, add the items by hand.`,
     );
   }
   if (status === 413) {

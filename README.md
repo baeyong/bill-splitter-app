@@ -29,7 +29,7 @@ npm start
 
 Then scan the QR code with Expo Go on your phone.
 
-Receipt scanning goes through the scan server in [`server/`](server/), which holds the Anthropic API key and enforces daily limits (per phone, per connection, and overall). Set `EXPO_PUBLIC_SCAN_URL` in `.env.local` to the deployed Worker, or to `npm run dev` in `server/` on your Mac's LAN address. Without it the rest of the app works normally and the scan screen says scanning isn't set up. For EAS builds set it as an EAS environment variable too, since `.env.local` is not uploaded.
+Receipt scanning goes through the scan server in [`server/`](server/), which holds the Anthropic API key and enforces scan limits (10 a week per phone, plus daily caps per connection and overall). Set `EXPO_PUBLIC_SCAN_URL` in `.env.local` to the deployed Worker, or to `npm run dev` in `server/` on your Mac's LAN address. Without it the rest of the app works normally and the scan screen says scanning isn't set up. For EAS builds set it as an EAS environment variable too, since `.env.local` is not uploaded.
 
 Deploying the server (a free Cloudflare account is enough):
 
@@ -41,7 +41,7 @@ npx wrangler secret put ANTHROPIC_API_KEY   # paste the key; it never goes in th
 npm run deploy                              # prints the Worker's URL
 ```
 
-Daily limits are plain settings in [`server/wrangler.toml`](server/wrangler.toml) — raise them and redeploy.
+The limits are plain settings in [`server/wrangler.toml`](server/wrangler.toml) — raise them and redeploy.
 
 ## Stack
 

@@ -2,6 +2,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { ScanResult, ScannedItem } from '../types/scan';
 import { fitWidth } from './imageFit';
 import { getInstallId } from './installId';
+import { allowanceFrom, saveAllowance } from './scanAllowance';
 import { ReceiptScanError, scanErrorFor } from './scanErrors';
 
 export { ReceiptScanError } from './scanErrors';
@@ -97,6 +98,8 @@ const requestScan = async (base64: string): Promise<any> => {
   } catch {
     // Handled below: a non-JSON reply is a failed scan either way.
   }
+  const allowance = allowanceFrom(body);
+  if (allowance) await saveAllowance(allowance);
   if (!res.ok) throw scanErrorFor(res.status, body);
   if (!body || typeof body !== 'object' || !('receipt' in body)) {
     throw new ReceiptScanError('parse', 'Got an unexpected response from the scanning service.');

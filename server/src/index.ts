@@ -1,39 +1,57 @@
 // Tabbly's scan server: the one thing between the app and Anthropic.
 //
 // POST /scan  { image: <base64 JPEG> }  with header X-Install-Id
-//   200 { receipt }              what Claude read, in the app's RECEIPT_SCHEMA shape
-//   400/413 { error }            bad request
-//   429 { error: 'limit', reason: 'device' | 'ip' | 'global' }
-//   5xx/422 { error }            scanning failed; see receipt.ts
+//   200 { receipt, scansLeft, scanLimit }   what Claude read, in the app's RECEIPT_SCHEMA shape
+//   400/413 { error }                        bad request
+//   429 { error: 'limit', reason: 'device' | 'ip' | 'global', scansLeft, scanLimit }
+//   5xx/422 { error, scansLeft, scanLimit }  scanning failed; see receipt.ts
+//
+// scansLeft/scanLimit are this phone's weekly allowance, so the app can show
+// "7 of 10 scans left this week".
 //
 // The API key lives here as a Worker secret and never reaches the app. Photos
 // pass straight through to Anthropic and are never stored or logged.
 import { DurableObject } from 'cloudflare:workers';
-import { Decision, Limits, dayKey, decide, limitFrom } from './limits';
+import { Decision, Limits, dayKey, decide, limitFrom, scansLeft, weekKey } from './limits';
 import { readReceipt } from './receipt';
 import { validateScan } from './validate';
 
 export interface Env {
   ANTHROPIC_API_KEY?: string;
   QUOTA: DurableObjectNamespace<Quota>;
-  PER_DEVICE_DAILY?: string;
+  PER_DEVICE_WEEKLY?: string;
   PER_IP_DAILY?: string;
   GLOBAL_DAILY?: string;
   MAX_IMAGE_BYTES?: string;
 }
 
 /**
- * Today's scan counts. One instance for the whole app keeps the global ceiling
- * exact; at a few hundred scans a day that's nowhere near its throughput.
+ * This week's per-phone counts and today's per-IP and global counts. One
+ * instance for the whole app keeps the global ceiling exact; at a few hundred
+ * scans a day that's nowhere near its throughput.
  */
 export class Quota extends DurableObject<Env> {
-  /** Counts one scan if it fits today's limits; a refused scan is never counted. */
-  async take(day: string, device: string, ip: string, limits: Limits): Promise<Decision> {
+  /**
+   * Counts one scan if it fits the limits; a refused scan is never counted.
+   * `used` is the phone's count for the week after this call.
+   */
+  async take(
+    day: string,
+    week: string,
+    device: string,
+    ip: string,
+    limits: Limits,
+  ): Promise<{ decision: Decision; used: number }> {
     const storage = this.ctx.storage;
-    // Only today's counts matter, so a new day starts from an empty store.
+    // Only the current day's and week's counts matter; older ones are dropped.
     if ((await storage.get<string>('day')) !== day) {
-      await storage.deleteAll();
+      await this.clear('i:');
+      await storage.delete('g');
       await storage.put('day', day);
+    }
+    if ((await storage.get<string>('week')) !== week) {
+      await this.clear('d:');
+      await storage.put('week', week);
     }
     const keys = { device: `d:${device}`, ip: `i:${ip}`, global: 'g' };
     const stored = await storage.get<number>([keys.device, keys.ip, keys.global]);
@@ -43,14 +61,22 @@ export class Quota extends DurableObject<Env> {
       global: stored.get(keys.global) ?? 0,
     };
     const decision = decide(counts, limits);
-    if (decision.ok) {
-      await storage.put({
-        [keys.device]: counts.device + 1,
-        [keys.ip]: counts.ip + 1,
-        [keys.global]: counts.global + 1,
-      });
+    if (!decision.ok) return { decision, used: counts.device };
+    await storage.put({
+      [keys.device]: counts.device + 1,
+      [keys.ip]: counts.ip + 1,
+      [keys.global]: counts.global + 1,
+    });
+    return { decision, used: counts.device + 1 };
+  }
+
+  private async clear(prefix: string): Promise<void> {
+    const storage = this.ctx.storage;
+    for (;;) {
+      const batch = await storage.list({ prefix, limit: 128 });
+      if (batch.size === 0) return;
+      await storage.delete([...batch.keys()]);
     }
-    return decision;
   }
 }
 
@@ -89,16 +115,26 @@ export default {
     if (!checked.ok) return json(checked.status, { error: checked.error });
 
     const limits: Limits = {
-      perDevice: limitFrom(env.PER_DEVICE_DAILY, 20),
+      perDevice: limitFrom(env.PER_DEVICE_WEEKLY, 10),
       perIp: limitFrom(env.PER_IP_DAILY, 40),
       global: limitFrom(env.GLOBAL_DAILY, 300),
     };
     const ip = await hash(request.headers.get('cf-connecting-ip') ?? 'unknown');
     const quota = env.QUOTA.get(env.QUOTA.idFromName('global'));
-    const decision = await quota.take(dayKey(new Date()), checked.request.installId, ip, limits);
-    if (!decision.ok) return json(429, { error: 'limit', reason: decision.reason });
+    const now = new Date();
+    const { decision, used } = await quota.take(
+      dayKey(now),
+      weekKey(now),
+      checked.request.installId,
+      ip,
+      limits,
+    );
+    const allowance = { scansLeft: scansLeft(used, limits), scanLimit: limits.perDevice };
+    if (!decision.ok) return json(429, { error: 'limit', reason: decision.reason, ...allowance });
 
     const result = await readReceipt(env.ANTHROPIC_API_KEY, checked.request.image);
-    return result.ok ? json(200, { receipt: result.receipt }) : json(result.status, { error: result.error });
+    return result.ok
+      ? json(200, { receipt: result.receipt, ...allowance })
+      : json(result.status, { error: result.error, ...allowance });
   },
 } satisfies ExportedHandler<Env>;

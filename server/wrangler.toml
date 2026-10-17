@@ -11,9 +11,10 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 preview_urls = false
 
-# Daily limits, per UTC day. Raise these as the app grows.
+# Limits. A phone's allowance is weekly (resets Monday 00:00 UTC); the two
+# backstops are per UTC day. Raise these as the app grows.
 [vars]
-PER_DEVICE_DAILY = "20"   # scans per phone
+PER_DEVICE_WEEKLY = "10"  # scans per phone per week
 PER_IP_DAILY = "40"       # scans per internet connection (backstop for faked install ids)
 GLOBAL_DAILY = "300"      # scans across everyone — the hard ceiling on spend
 MAX_IMAGE_BYTES = "4000000"

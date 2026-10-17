@@ -24,7 +24,7 @@
 <main>
 <article>
 <h1>Tabbly — Privacy Policy</h1>
-<p class="meta">Effective October 16, 2026 · Applies to the Tabbly iPhone and iPad app, available in the United States.</p>
+<p class="meta">Effective October 17, 2026 · Applies to the Tabbly iPhone and iPad app, available in the United States.</p>
 
 <div class="summary">
   <p><strong>The short version:</strong> Tabbly keeps everything on your phone. The one exception is receipt scanning: if you choose to scan a receipt, that photo is sent to Anthropic's Claude AI to read the items, and only after you've agreed.</p>
@@ -38,13 +38,13 @@
 <p>Receipt scanning is optional. You can always add items by hand instead. The first time you tap <em>Scan receipt</em>, the app asks for your permission before anything is sent. When you scan, the app sends:</p>
 <ul>
   <li><strong>The receipt photo.</strong> A receipt can show things like the restaurant's name and address, the date and time, and sometimes the last digits of a card or a server's name.</li>
-  <li><strong>A random install ID.</strong> A random code created when you install the app. It isn't linked to your name, your Apple ID, or your device's identifiers, and it changes if you reinstall. It's used only to apply the daily scan limit.</li>
+  <li><strong>A random install ID.</strong> A random code created the first time you use the app. It isn't linked to your name, your Apple ID, or your device's identifiers. It's kept in your iPhone's Keychain, so it stays the same if you delete and reinstall the app. It's used only to apply the weekly scan limit.</li>
 </ul>
 <p>As with any internet request, your phone's <strong>IP address</strong> is visible to the server that receives it.</p>
 
 <h2>Who handles it</h2>
 <ul>
-  <li><strong>Tabbly's scan server</strong> (run on Cloudflare) receives the photo and passes it straight to Anthropic. It does <strong>not</strong> store or log the photo. To enforce daily scan limits, it keeps a count of scans per install ID and per <em>hashed</em> (scrambled, one-way) IP address — only for the current day, after which the counts are deleted.</li>
+  <li><strong>Tabbly's scan server</strong> (run on Cloudflare) receives the photo and passes it straight to Anthropic. It does <strong>not</strong> store or log the photo. To enforce scan limits, it keeps a count of scans per install ID for the current week, and per <em>hashed</em> (scrambled, one-way) IP address for the current day. Older counts are deleted.</li>
   <li><strong>Anthropic</strong>, the maker of Claude, reads the photo and returns the list of items. Under Anthropic's <a href="https://www.anthropic.com/legal/commercial-terms">Commercial Terms</a>, Anthropic may not train its models on this data. Anthropic deletes it within 30 days, except where it needs to keep it longer to enforce its usage policy or to comply with the law. See <a href="https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data">Anthropic's data retention article</a>.</li>
   <li><strong>Cloudflare</strong> hosts the scan server and, like any web host, processes the connection to deliver it. See <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.</li>
 </ul>
@@ -54,7 +54,7 @@
 <ul>
   <li><strong>Don't scan:</strong> every feature works without scanning; you can add items by hand.</li>
   <li><strong>Turn scanning off:</strong> in the app, go to Settings → <em>Send photos to Claude</em>. You'll be asked again before any future scan.</li>
-  <li><strong>Delete your data:</strong> deleting the app removes everything stored on your phone. Tabbly's server keeps nothing beyond the current day's scan counts.</li>
+  <li><strong>Delete your data:</strong> deleting the app removes everything stored on your phone except the random install ID in the Keychain, which holds nothing about you. Tabbly's server keeps nothing beyond this week's scan counts.</li>
 </ul>
 
 <h2>Children</h2>

@@ -1,8 +1,10 @@
-// The daily scan limits, as pure logic so they can be tested without
-// Cloudflare. The counts themselves live in the Quota Durable Object.
+// The scan limits, as pure logic so they can be tested without Cloudflare.
+// The counts themselves live in the Quota Durable Object. A phone's allowance
+// is weekly; the two backstops (per IP, everyone) stay daily so a burst can't
+// spend a week's ceiling in one day.
 
 export type Limits = {
-  /** Scans one install (one phone) may make per UTC day. */
+  /** Scans one install (one phone) may make per week (Monday to Monday, UTC). */
   perDevice: number;
   /** Scans one IP address may make per day — backstop for faked install ids. */
   perIp: number;
@@ -24,6 +26,15 @@ export const decide = (counts: Counts, limits: Limits): Decision => {
 
 /** "2026-10-14" — counters reset at midnight UTC. */
 export const dayKey = (now: Date): string => now.toISOString().slice(0, 10);
+
+/** The Monday (UTC) that starts `now`'s week, e.g. "2026-10-12" — phones' allowances reset then. */
+export const weekKey = (now: Date): string => {
+  const daysSinceMonday = (now.getUTCDay() + 6) % 7;
+  return dayKey(new Date(now.getTime() - daysSinceMonday * 86_400_000));
+};
+
+/** Scans a phone has left this week once `used` have been counted. */
+export const scansLeft = (used: number, limits: Limits): number => Math.max(0, limits.perDevice - used);
 
 /** Reads a numeric limit from an env var, falling back when it's missing or junk. */
 export const limitFrom = (value: string | undefined, fallback: number): number => {

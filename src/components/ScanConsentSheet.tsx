@@ -7,7 +7,7 @@ import { Column, DashedRule, PaperButton } from './paper';
 
 const POINTS = [
   "To read the items, Tabbly sends this receipt photo to Anthropic's Claude, through Tabbly's own server.",
-  "Tabbly's server doesn't keep the photo. It only counts scans per day.",
+  "Tabbly's server doesn't keep the photo. It only counts how many scans you've made this week.",
   'Everything else — names, amounts, saved receipts — stays on your phone.',
 ];
 
