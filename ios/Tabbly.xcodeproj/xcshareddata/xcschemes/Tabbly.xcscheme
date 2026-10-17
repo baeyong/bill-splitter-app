@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "SplitIt.app"
-               BlueprintName = "SplitIt"
-               ReferencedContainer = "container:SplitIt.xcodeproj">
+               BuildableName = "Tabbly.app"
+               BlueprintName = "Tabbly"
+               ReferencedContainer = "container:Tabbly.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "SplitItTests.xctest"
-               BlueprintName = "SplitItTests"
-               ReferencedContainer = "container:SplitIt.xcodeproj">
+               BuildableName = "TabblyTests.xctest"
+               BlueprintName = "TabblyTests"
+               ReferencedContainer = "container:Tabbly.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "SplitIt.app"
-            BlueprintName = "SplitIt"
-            ReferencedContainer = "container:SplitIt.xcodeproj">
+            BuildableName = "Tabbly.app"
+            BlueprintName = "Tabbly"
+            ReferencedContainer = "container:Tabbly.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "SplitIt.app"
-            BlueprintName = "SplitIt"
-            ReferencedContainer = "container:SplitIt.xcodeproj">
+            BuildableName = "Tabbly.app"
+            BlueprintName = "Tabbly"
+            ReferencedContainer = "container:Tabbly.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
